@@ -5,6 +5,7 @@ import { PdfService } from '../../notifications/application/pdf.service';
 import { EmailService } from '../../notifications/application/email.service';
 import { GeminiService } from '../../gemini/application/gemini.service';
 import { AuthService } from '../../auth/application/auth.service';
+import { SalesAnalyticsService } from '../../external-data/application/sales-analytics.service';
 
 @Injectable()
 export class DemoSalesPlanScript extends BaseScript {
@@ -17,9 +18,11 @@ export class DemoSalesPlanScript extends BaseScript {
     private readonly emailService: EmailService,
     private readonly geminiService: GeminiService,
     private readonly authService: AuthService,
+    private readonly salesAnalyticsService: SalesAnalyticsService,
   ) {
     super();
   }
+
 
 
   async execute(params: Record<string, any>): Promise<ScriptResult> {
@@ -28,15 +31,21 @@ export class DemoSalesPlanScript extends BaseScript {
     const monthName = params.monthName || 'Mes Actual';
     
     this.logger.log(`Starting execute of DemoSalesPlanScript target email: ${emailDestination}`);
-
     try {
       // --- PASO DE AUTENTICACIÓN A PRUEBA ---
       this.logger.log('Validating Global DMS authentication credentials...');
       const token = await this.authService.getValidToken();
       this.logger.log(`Authentication successful. Token retrieved (length: ${token.length}).`);
 
-      // --- EJECUCIÓN DE DEEP RESEARCH REAL CON GEMINI 2.5 PRO ---
+      // --- PASO DE CÁLCULO DE TENDENCIAS Y MÉTRICAS HISTÓRICAS ---
+      this.logger.log('Fetching and calculating historical sales trends YoY...');
+      // Month parameter maps from parameter or defaults to 6 (June)
+      const queryMonth = params.monthName && params.monthName.toLowerCase().includes('julio') ? 7 : 6;
+      const queryYear = 2026;
+      const metrics = await this.salesAnalyticsService.generateStrategyMetrics(queryYear, queryMonth);
+      this.logger.log('Strategy comparison data and recommended targets calculated.');
 
+      // --- EJECUCIÓN DE DEEP RESEARCH REAL CON GEMINI 2.5 PRO ---
       this.logger.log('Executing REAL Deep Research using Gemini 2.5 Pro...');
       
       const researchPrompt = `
@@ -85,6 +94,78 @@ Mantén un tono profesional, estratégico, altamente detallado y accionado por d
       );
       this.logger.log('Real Deep Research draft email successfully sent.');
       // ------------------------------------------------
+
+      // --- GENERAR CORREO DE ANÁLISIS COMPARATIVO DE VENTAS Y OBJETIVOS ---
+      this.logger.log('Building historical comparison email content...');
+      
+      let tableRows = '';
+      metrics.comparison.forEach(item => {
+        tableRows += `
+          <tr style="border-bottom: 1px solid #E2E8F0;">
+            <td style="padding: 10px; font-weight: bold;">${item.model}</td>
+            <td style="padding: 10px; text-align: center; color: #4A5568;">${item.sales3Months2026}</td>
+            <td style="padding: 10px; text-align: center; color: #4A5568;">${item.sales3Months2025}</td>
+            <td style="padding: 10px; text-align: center; color: ${item.growthRate >= 0 ? '#48BB78' : '#F56565'}; font-weight: bold;">${item.growthRate}%</td>
+            <td style="padding: 10px; text-align: center; color: #4A5568;">${item.june2025}</td>
+            <td style="padding: 10px; text-align: center; color: #2B6CB0; font-weight: bold; font-size: 1.1em; background-color: #EBF8FF;">${item.suggestedGoal2026}</td>
+          </tr>
+        `;
+      });
+
+      const emailHtmlContent = `
+        <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; color: #2D3748; line-height: 1.6;">
+          <h2 style="color: #1A365D; border-bottom: 2px solid #2B6CB0; padding-bottom: 10px;">📊 Reporte Comparativo e Indicadores de Ventas — Jetour Soueast México</h2>
+          <p>Estimado Director,</p>
+          <p>Presentamos la tabla de análisis comparativo de desempeño de ventas acumuladas correspondientes al periodo trimestre inmediato anterior del año en curso contra el año anterior (YoY), el mes equivalente histórico de 2025 y las metas del objetivo sugeridas para el presente mes.</p>
+          
+          <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 0.9em; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <thead>
+              <tr style="background-color: #2B6CB0; color: white; text-align: left;">
+                <th style="padding: 12px; font-weight: 600;">Modelo</th>
+                <th style="padding: 12px; font-weight: 600; text-align: center;">Últimos 3 Meses 2026<br>(Mar, Abr, May)</th>
+                <th style="padding: 12px; font-weight: 600; text-align: center;">Mismos 3 Meses 2025<br>(Mar, Abr, May)</th>
+                <th style="padding: 12px; font-weight: 600; text-align: center;">Tendencia YoY</th>
+                <th style="padding: 12px; font-weight: 600; text-align: center;">Mes Eq. Año Ant.<br>(Junio 2025)</th>
+                <th style="padding: 12px; font-weight: 600; text-align: center; background-color: #1A365D;">Objetivo Sugerido<br>Junio 2026</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows}
+              <tr style="background-color: #EDF2F7; font-weight: bold; border-top: 2px solid #CBD5E0;">
+                <td style="padding: 12px;">TOTAL MARCA</td>
+                <td style="padding: 12px; text-align: center;">${metrics.totals.sales3Months2026}</td>
+                <td style="padding: 12px; text-align: center;">${metrics.totals.sales3Months2025}</td>
+                <td style="padding: 12px; text-align: center; color: ${metrics.totals.growthRate >= 0 ? '#48BB78' : '#F56565'};">${metrics.totals.growthRate}%</td>
+                <td style="padding: 12px; text-align: center;">${metrics.totals.june2025}</td>
+                <td style="padding: 12px; text-align: center; background-color: #E2E8F0; color: #1A365D; font-size: 1.15em;">${metrics.totals.suggestedGoal2026}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style="background-color: #F7FAFC; border-left: 4px solid #4B5563; padding: 15px; margin: 25px 0; border-radius: 4px;">
+            <h4 style="margin-top: 0; color: #1A365D; font-size: 1.1em;">💡 Resumen y Explicación de Metodología de Objetivos:</h4>
+            <ul>
+              <li><strong>Tendencia YoY:</strong> Muestra la variación de ventas del trimestre acumulado (Mar-Abr-May) en 2026 contra el mismo periodo del año pasado (2025).</li>
+              <li><strong>Modelo de Proyección:</strong> El objetivo para Junio 2026 calcula la venta del mes de Junio 2025 ajustada por la tasa de crecimiento de la marca, aplicando un piso basado en el promedio mensual del año actual para modelos con comportamiento estable.</li>
+              <li><strong>Total Acumulado Marca:</strong> El objetivo total recomendado se establece en <strong>${metrics.totals.suggestedGoal2026} unidades</strong> para el corporativo nacional, impulsando un crecimiento del <strong>${metrics.totals.growthRate}%</strong> de forma global de acuerdo a la tracción del mercado de SUVs.</li>
+            </ul>
+          </div>
+          <p>En el siguiente paso, utilizaremos estos números estructurados para inyectarlos en la propuesta de Plan de Trabajo detallado e integrarlo al Deep Research para la entrega del PDF corporativo.</p>
+        </div>
+      `;
+
+      // Enviar el correo comparativo
+      this.logger.log(`Sending Historical Sales Analytics email to ${emailDestination}...`);
+      await this.emailService.sendMailWithAttachment(
+        emailDestination,
+        `📊 Reporte Comparativo e Indicadores de Ventas — ${monthName}`,
+        'Adjuntamos el reporte estratégico de comparación histórica de ventas para su revisión.',
+        Buffer.from(emailHtmlContent, 'utf-8'),
+        `Ventas_Comparativo_${monthName.replace(/\s+/g, '_')}.html`,
+      );
+      this.logger.log('Historical comparison email successfully sent.');
+      // ------------------------------------------------
+     // ------------------------------------------------
 
 
       // 1. Generate PDF
