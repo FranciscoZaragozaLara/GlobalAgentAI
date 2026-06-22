@@ -4,6 +4,7 @@ import { ScriptResult } from '../domain/script.types';
 import { PdfService } from '../../notifications/application/pdf.service';
 import { EmailService } from '../../notifications/application/email.service';
 import { GeminiService } from '../../gemini/application/gemini.service';
+import { AuthService } from '../../auth/application/auth.service';
 
 @Injectable()
 export class DemoSalesPlanScript extends BaseScript {
@@ -15,9 +16,11 @@ export class DemoSalesPlanScript extends BaseScript {
     private readonly pdfService: PdfService,
     private readonly emailService: EmailService,
     private readonly geminiService: GeminiService,
+    private readonly authService: AuthService,
   ) {
     super();
   }
+
 
   async execute(params: Record<string, any>): Promise<ScriptResult> {
     const emailDestination = params.email || 'frzaragoza.arcade@gmail.com';
@@ -27,7 +30,13 @@ export class DemoSalesPlanScript extends BaseScript {
     this.logger.log(`Starting execute of DemoSalesPlanScript target email: ${emailDestination}`);
 
     try {
+      // --- PASO DE AUTENTICACIÓN A PRUEBA ---
+      this.logger.log('Validating Global DMS authentication credentials...');
+      const token = await this.authService.getValidToken();
+      this.logger.log(`Authentication successful. Token retrieved (length: ${token.length}).`);
+
       // --- EJECUCIÓN DE DEEP RESEARCH REAL CON GEMINI 2.5 PRO ---
+
       this.logger.log('Executing REAL Deep Research using Gemini 2.5 Pro...');
       
       const researchPrompt = `
