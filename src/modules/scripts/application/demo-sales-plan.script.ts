@@ -6,6 +6,7 @@ import { EmailService } from '../../notifications/application/email.service';
 import { GeminiService } from '../../gemini/application/gemini.service';
 import { AuthService } from '../../auth/application/auth.service';
 import { SalesAnalyticsService } from '../../external-data/application/sales-analytics.service';
+import { ResearchStorageService } from '../../gemini/application/research-storage.service';
 
 @Injectable()
 export class DemoSalesPlanScript extends BaseScript {
@@ -19,9 +20,11 @@ export class DemoSalesPlanScript extends BaseScript {
     private readonly geminiService: GeminiService,
     private readonly authService: AuthService,
     private readonly salesAnalyticsService: SalesAnalyticsService,
+    private readonly researchStorageService: ResearchStorageService,
   ) {
     super();
   }
+
 
 
 
@@ -45,10 +48,16 @@ export class DemoSalesPlanScript extends BaseScript {
       const metrics = await this.salesAnalyticsService.generateStrategyMetrics(queryYear, queryMonth);
       this.logger.log('Strategy comparison data and recommended targets calculated.');
 
-      // --- EJECUCIÓN DE DEEP RESEARCH REAL CON GEMINI 2.5 PRO ---
-      this.logger.log('Executing REAL Deep Research using Gemini 2.5 Pro...');
+      // --- EJECUCIÓN DE DEEP RESEARCH REAL CON CACHÉ ---
+      let realDeepResearchMarkdown = '';
       
-      const researchPrompt = `
+      if (this.researchStorageService.hasResearch(monthName, queryYear)) {
+        this.logger.log(`Deep Research for ${monthName} ${queryYear} found in cache. Loading from disk...`);
+        realDeepResearchMarkdown = this.researchStorageService.getResearch(monthName, queryYear);
+      } else {
+        this.logger.log(`Executing REAL Deep Research using Gemini 2.5 Pro for ${monthName} ${queryYear}...`);
+        
+        const researchPrompt = `
 Eres un Consultor Senior de Estrategia de Negocios y Marketing Digital, experto en el mercado automotriz mexicano y especializado en el segmento de SUVs y vehículos de origen asiático. 
 
 Tu objetivo es realizar una investigación de mercado profunda y generar un Plan Estratégico Mensual (Deep Research) para la marca de automóviles Jetour y Soueast en México, correspondiente al periodo de: ${monthName} de 2026.
@@ -77,118 +86,77 @@ Genera tu respuesta en formato Markdown estructurado exactamente con las siguien
 ## 5. RIESGOS CLAVE DETECTADOS Y MITIGACIONES SUGERIDAS
 
 Mantén un tono profesional, estratégico, altamente detallado y accionado por datos. No uses generalidades; ofrece ideas prácticas y conceptos creativos de campañas listos para ser implementados por las agencias.
-      `;
-
-      // Call Gemini 2.5 Pro (Using default model parameter)
-      const realDeepResearchMarkdown = await this.geminiService.generateText(researchPrompt, 'gemini-2.5-pro');
-      this.logger.log('Real Deep Research Markdown generated from Gemini.');
-
-      // Enviar el reporte Markdown real por correo
-      this.logger.log(`Sending Real Deep Research Markdown email to ${emailDestination}...`);
-      await this.emailService.sendMailWithAttachment(
-        emailDestination,
-        `[REVISIÓN DEEP RESEARCH REAL] Propuesta de Estructura - ${monthName}`,
-        `Hola,\n\nAdjuntamos la propuesta de Deep Research REAL generada por Gemini 2.5 Pro para ${monthName} para su revisión previa a la persistencia.\n\nContenido del reporte:\n\n${realDeepResearchMarkdown}`,
-        Buffer.from(realDeepResearchMarkdown, 'utf-8'),
-        `Deep_Research_Real_${monthName.replace(/\s+/g, '_')}.txt`,
-      );
-      this.logger.log('Real Deep Research draft email successfully sent.');
-      // ------------------------------------------------
-
-      // --- GENERAR CORREO DE ANÁLISIS COMPARATIVO DE VENTAS Y OBJETIVOS ---
-      this.logger.log('Building historical comparison email content...');
-      
-      let tableRows = '';
-      metrics.comparison.forEach(item => {
-        tableRows += `
-          <tr style="border-bottom: 1px solid #E2E8F0;">
-            <td style="padding: 10px; font-weight: bold;">${item.model}</td>
-            <td style="padding: 10px; text-align: center; color: #4A5568;">${item.sales3Months2026}</td>
-            <td style="padding: 10px; text-align: center; color: #4A5568;">${item.sales3Months2025}</td>
-            <td style="padding: 10px; text-align: center; color: ${item.growthRate >= 0 ? '#48BB78' : '#F56565'}; font-weight: bold;">${item.growthRate}%</td>
-            <td style="padding: 10px; text-align: center; color: #4A5568;">${item.june2025}</td>
-            <td style="padding: 10px; text-align: center; color: #2B6CB0; font-weight: bold; font-size: 1.1em; background-color: #EBF8FF;">${item.suggestedGoal2026}</td>
-          </tr>
         `;
-      });
 
-      const emailHtmlContent = `
-        <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; color: #2D3748; line-height: 1.6;">
-          <h2 style="color: #1A365D; border-bottom: 2px solid #2B6CB0; padding-bottom: 10px;">📊 Reporte Comparativo e Indicadores de Ventas — Jetour Soueast México</h2>
-          <p>Estimado Director,</p>
-          <p>Presentamos la tabla de análisis comparativo de desempeño de ventas acumuladas correspondientes al periodo trimestre inmediato anterior del año en curso contra el año anterior (YoY), el mes equivalente histórico de 2025 y las metas del objetivo sugeridas para el presente mes.</p>
-          
-          <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 0.9em; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-            <thead>
-              <tr style="background-color: #2B6CB0; color: white; text-align: left;">
-                <th style="padding: 12px; font-weight: 600;">Modelo</th>
-                <th style="padding: 12px; font-weight: 600; text-align: center;">Últimos 3 Meses 2026<br>(Mar, Abr, May)</th>
-                <th style="padding: 12px; font-weight: 600; text-align: center;">Mismos 3 Meses 2025<br>(Mar, Abr, May)</th>
-                <th style="padding: 12px; font-weight: 600; text-align: center;">Tendencia YoY</th>
-                <th style="padding: 12px; font-weight: 600; text-align: center;">Mes Eq. Año Ant.<br>(Junio 2025)</th>
-                <th style="padding: 12px; font-weight: 600; text-align: center; background-color: #1A365D;">Objetivo Sugerido<br>Junio 2026</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${tableRows}
-              <tr style="background-color: #EDF2F7; font-weight: bold; border-top: 2px solid #CBD5E0;">
-                <td style="padding: 12px;">TOTAL MARCA</td>
-                <td style="padding: 12px; text-align: center;">${metrics.totals.sales3Months2026}</td>
-                <td style="padding: 12px; text-align: center;">${metrics.totals.sales3Months2025}</td>
-                <td style="padding: 12px; text-align: center; color: ${metrics.totals.growthRate >= 0 ? '#48BB78' : '#F56565'};">${metrics.totals.growthRate}%</td>
-                <td style="padding: 12px; text-align: center;">${metrics.totals.june2025}</td>
-                <td style="padding: 12px; text-align: center; background-color: #E2E8F0; color: #1A365D; font-size: 1.15em;">${metrics.totals.suggestedGoal2026}</td>
-              </tr>
-            </tbody>
-          </table>
+        // Call Gemini 2.5 Pro (Using default model parameter)
+        realDeepResearchMarkdown = await this.geminiService.generateText(researchPrompt, 'gemini-2.5-pro');
+        this.logger.log('Real Deep Research Markdown generated from Gemini.');
+        
+        // Save to local disk cache
+        this.researchStorageService.saveResearch(monthName, queryYear, realDeepResearchMarkdown);
+      }
 
-          <div style="background-color: #F7FAFC; border-left: 4px solid #4B5563; padding: 15px; margin: 25px 0; border-radius: 4px;">
-            <h4 style="margin-top: 0; color: #1A365D; font-size: 1.1em;">💡 Resumen y Explicación de Metodología de Objetivos:</h4>
-            <ul>
-              <li><strong>Tendencia YoY:</strong> Muestra la variación de ventas del trimestre acumulado (Mar-Abr-May) en 2026 contra el mismo periodo del año pasado (2025).</li>
-              <li><strong>Modelo de Proyección:</strong> El objetivo para Junio 2026 calcula la venta del mes de Junio 2025 ajustada por la tasa de crecimiento de la marca, aplicando un piso basado en el promedio mensual del año actual para modelos con comportamiento estable.</li>
-              <li><strong>Total Acumulado Marca:</strong> El objetivo total recomendado se establece en <strong>${metrics.totals.suggestedGoal2026} unidades</strong> para el corporativo nacional, impulsando un crecimiento del <strong>${metrics.totals.growthRate}%</strong> de forma global de acuerdo a la tracción del mercado de SUVs.</li>
-            </ul>
-          </div>
-          <p>En el siguiente paso, utilizaremos estos números estructurados para inyectarlos en la propuesta de Plan de Trabajo detallado e integrarlo al Deep Research para la entrega del PDF corporativo.</p>
-        </div>
+      // --- FASE DE UNIFICACIÓN ESTRATÉGICA CON LLM (Gemini 2.5 Flash) ---
+      this.logger.log('Generating Unified Strategic Executive Report with Gemini 2.5 Flash...');
+      const unificationPrompt = `
+Eres un Consultor Senior de Estrategia Comercial Automotriz para la marca Jetour & Soueast en México.
+
+Tu objetivo es tomar los datos cuantitativos de ventas y objetivos históricos (obtenidos de las APIs de la empresa) y combinarlos inteligentemente con las tendencias de mercado del reporte de Deep Research cualitativo. Debes producir un único **Reporte Ejecutivo y Plan de Trabajo Estratégico Unificado** que de sentido a los números utilizando el contexto del mercado.
+
+DATOS CUANTITATIVOS DE VENTAS Y METAS (.NET API):
+${JSON.stringify(metrics, null, 2)}
+
+REPORTE DEEP RESEARCH CUALITATIVO DE MERCADO:
+${realDeepResearchMarkdown}
+
+INSTRUCCIONES DE REDACCIÓN Y COHESIÓN CRÍTICAS:
+1. **FUSIONA LOS DATOS CON LA ESTRATEGIA:** Enlaza y justifica la meta de ventas sugerida de cada modelo (ej. Jetour X70, Dashing, etc.) directamente con las temporalidades de campaña y tendencias cualitativas descritas en el Deep Research.
+2. **PLANTEA TAREAS COMERCIALES PUNTUALES:** Define una lista de tareas de negocio y marketing sumamente específicas y accionables para el equipo comercial, ligando metas y desempeños YoY.
+3. **FORMATO Y ESTRUCTURA (RESTRICCIONES IMPORTANTES):**
+   - **PROHIBIDO EL USO DE TABLAS MARKDOWN:** No utilices caracteres como '|' o '-' para armar tablas. La tabla de métricas ya se dibuja de forma automatizada por el sistema. Todo el reporte debe redactarse exclusivamente en párrafos y viñetas simples (-).
+   - **NO UTILICES FORMATOS DE NEGRITAS MARKDOWN:** Evita envolver palabras en asteriscos '**', ya que el PDF se encargará de formatear los encabezados de forma limpia.
+   - Utiliza exclusivamente subtítulos lógicos de segundo y tercer nivel (## y ###), viñetas simples (-) y párrafos tradicionales.
+4. **TONO Y COMIENZO:** Mantén un tono formal, estratégico e imperativo en las tareas. Inicia directamente con el texto del reporte, sin saludos ni introducciones previas.
       `;
 
-      // Enviar el correo comparativo
-      this.logger.log(`Sending Historical Sales Analytics email to ${emailDestination}...`);
-      await this.emailService.sendMailWithAttachment(
-        emailDestination,
-        `📊 Reporte Comparativo e Indicadores de Ventas — ${monthName}`,
-        'Adjuntamos el reporte estratégico de comparación histórica de ventas para su revisión.',
-        Buffer.from(emailHtmlContent, 'utf-8'),
-        `Ventas_Comparativo_${monthName.replace(/\s+/g, '_')}.html`,
+      const unifiedStrategyMarkdown = await this.geminiService.generateText(unificationPrompt, 'gemini-2.5-flash');
+      this.logger.log('Unified Strategy Markdown successfully generated by Gemini 2.5 Flash.');
+
+      // --- GENERAR REPORTE EJECUTIVO PDF UNIFICADO Y ENVIAR UN CORREO ÚNICO ---
+      this.logger.log('Generating unified executive PDF report (cover, tables, vector charts, unified strategy)...');
+      const pdfBuffer = await this.pdfService.generateExecutivePdf(
+        monthName,
+        agencyName,
+        metrics,
+        unifiedStrategyMarkdown,
       );
-      this.logger.log('Historical comparison email successfully sent.');
-      // ------------------------------------------------
-     // ------------------------------------------------
+      this.logger.log('Executive PDF successfully generated.');
 
+      // Build concise 2-paragraph email body
+      const emailBodyText = `Estimado Director,
 
-      // 1. Generate PDF
-      const pdfBuffer = await this.pdfService.generateDummyPdf(monthName, agencyName);
-      this.logger.log('Dummy PDF successfully generated.');
+Adjuntamos el Plan Estratégico de Ventas y Marketing correspondiente al periodo de ${monthName} de 2026. Este reporte unifica el análisis cuantitativo de ventas históricas, las proyecciones de objetivos sugeridos por modelo y la investigación estratégica de tendencias de mercado (Deep Research) para impulsar el desempeño comercial de la marca Jetour y Soueast en México.
 
-      // 2. Send email
+El objetivo de ventas global recomendado para este periodo se establece en ${metrics.totals.suggestedGoal2026} unidades, lo que representa una tendencia de crecimiento anual acumulada del ${metrics.totals.growthRate}% en el trimestre de comparación. La justificación de metas individuales por modelo y las tácticas específicas de campañas de temporada y rotación de unidades seminuevas (Trade-in) se detallan a profundidad en el documento ejecutivo PDF anexo a este mensaje.`;
+
+      this.logger.log(`Sending unified Strategic Sales Plan email to ${emailDestination}...`);
       const emailSent = await this.emailService.sendMailWithAttachment(
         emailDestination,
-        `Plan Estratégico de Ventas - ${monthName}`,
-        'hola aqui va el plan de ventas del mes actual',
+        `Plan Estratégico de Ventas y Marketing - ${monthName} 2026`,
+        emailBodyText,
         pdfBuffer,
-        `Plan_Ventas_${monthName.replace(/\s+/g, '_')}.pdf`,
+        `Plan_Estrategico_Ventas_${monthName.replace(/\s+/g, '_')}_2026.pdf`,
       );
 
       if (emailSent) {
         return {
           success: true,
-          message: `Script executed successfully. Deep Research draft & final Plan emails sent to ${emailDestination}.`,
+          message: `Script executed successfully. Unified executive PDF report emailed to ${emailDestination}.`,
           data: {
             destination: emailDestination,
             agency: agencyName,
             month: monthName,
+            totals: metrics.totals,
           },
         };
       } else {

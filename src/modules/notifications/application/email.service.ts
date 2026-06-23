@@ -12,8 +12,9 @@ export class EmailService {
     to: string,
     subject: string,
     text: string,
-    pdfBuffer: Buffer,
-    pdfFilename: string,
+    pdfBuffer?: Buffer,
+    pdfFilename?: string,
+    html?: string,
   ): Promise<boolean> {
     const apiKey = this.configService.get<string>('BREVO_API_KEY');
     const fromEmail = this.configService.get<string>('SMTP_FROM', 'no-reply@jetour-soueast.mx');
@@ -27,10 +28,7 @@ export class EmailService {
       // Brevo Transactional Email V3 endpoint
       const url = 'https://api.brevo.com/v3/smtp/email';
 
-      // Convert PDF Buffer to Base64 (Required by Brevo API)
-      const base64Content = pdfBuffer.toString('base64');
-
-      const payload = {
+      const payload: any = {
         sender: {
           name: 'Jetour Soueast México',
           email: fromEmail,
@@ -42,14 +40,19 @@ export class EmailService {
         ],
         subject: subject,
         textContent: text,
-        htmlContent: `<p>${text.replace(/\n/g, '<br>')}</p>`,
-        attachment: [
+        htmlContent: html || `<p>${text.replace(/\n/g, '<br>')}</p>`,
+      };
+
+      if (pdfBuffer && pdfFilename) {
+        // Convert PDF Buffer to Base64 (Required by Brevo API)
+        const base64Content = pdfBuffer.toString('base64');
+        payload.attachment = [
           {
             content: base64Content,
             name: pdfFilename,
           },
-        ],
-      };
+        ];
+      }
 
       this.logger.log(`Sending transactional email via Brevo API to ${to}...`);
 
