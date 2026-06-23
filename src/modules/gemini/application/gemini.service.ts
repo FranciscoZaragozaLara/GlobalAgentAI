@@ -47,7 +47,7 @@ export class GeminiService {
   /**
    * Generates an image using Google Imagen 3
    */
-  async generateImage(prompt: string, model: string = 'imagen-3.0-generate-002'): Promise<Buffer> {
+  async generateImage(prompt: string, model: string = 'imagen-4.0-generate-001'): Promise<Buffer> {
     try {
       this.logger.log(`Invoking Imagen Model: ${model} with prompt: ${prompt}...`);
       const response = await this.ai.models.generateImages({
