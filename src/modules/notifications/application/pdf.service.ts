@@ -277,17 +277,34 @@ export class PdfService {
           return;
         }
 
-        // Matches custom image markers [IMAGE: path]
-        const imageMatch = trimmed.match(/^\[IMAGE:\s*(.*?)\]$/i);
+        // Matches custom image markers [IMAGE_DATA|path:...|prompt:...|model:...|file:...]
+        const imageMatch = trimmed.match(/\[IMAGE_DATA\|path:(.*?)\|prompt:(.*?)\|model:(.*?)\|file:(.*?)\]/i);
         if (imageMatch) {
           const imagePath = imageMatch[1].trim();
+          const originalPrompt = imageMatch[2].trim();
+          const modelUsed = imageMatch[3].trim();
+          const fileName = imageMatch[4].trim();
+
           if (fs.existsSync(imagePath)) {
             try {
-              if (doc.y > 650) {
+              if (doc.y > 600) {
                 doc.addPage();
               }
+              
+              // Draw Image
               doc.image(imagePath, { fit: [495, 120], align: 'center' });
-              doc.y += 130;
+              doc.y += 125;
+
+              // Draw Caption
+              doc.fillColor('#718096')
+                 .fontSize(7)
+                 .font('Helvetica-Oblique')
+                 .text(`"${originalPrompt}"`, { align: 'center', width: 495 });
+              
+              doc.font('Helvetica')
+                 .text(`Modelo: ${modelUsed}  |  Archivo: ${fileName}`, { align: 'center', width: 495 });
+              
+              doc.moveDown(0.5);
             } catch (imgErr) {
               this.logger.error(`Error embedding generated campaign image: ${imgErr.message}`);
             }

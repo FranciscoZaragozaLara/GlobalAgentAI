@@ -155,20 +155,24 @@ INSTRUCCIONES DE REDACCIÓN Y COHESIÓN CRÍTICAS:
         const promptHash = crypto.createHash('md5').update(promptText.trim().toLowerCase()).digest('hex');
         const cachedImagePath = path.join(cacheImagesDir, `ad_cache_${promptHash}.jpg`);
 
+        const filename = `ad_cache_${promptHash}.jpg`;
+        const modelName = 'imagen-4.0-generate-001';
+        const imageTag = `[IMAGE_DATA|path:${cachedImagePath}|prompt:${promptText}|model:${modelName}|file:${filename}]`;
+
         if (fs.existsSync(cachedImagePath)) {
           this.logger.log(`Ad image ${i + 1}/${matches.length} found in CACHE (Hash: ${promptHash}). Reusing...`);
-          // Replace tag in Markdown with the cached image path for PdfService to draw it
-          modifiedMarkdown = modifiedMarkdown.replace(originalTag, `[IMAGE: ${cachedImagePath}]`);
+          // Replace tag in Markdown with the cached image path metadata for PdfService to draw it
+          modifiedMarkdown = modifiedMarkdown.replace(originalTag, imageTag);
         } else {
           this.logger.log(`Generating ad image ${i + 1}/${matches.length} (CACHE MISS) with prompt: "${promptText.substring(0, 60)}..."`);
           
           try {
             // Call Google Imagen 4.0 (as verified in ListModels)
-            const imageBuffer = await this.geminiService.generateImage(promptText, 'imagen-4.0-generate-001');
+            const imageBuffer = await this.geminiService.generateImage(promptText, modelName);
             fs.writeFileSync(cachedImagePath, imageBuffer);
             this.logger.log(`Ad image generated and saved to cache: ${cachedImagePath}`);
             
-            modifiedMarkdown = modifiedMarkdown.replace(originalTag, `[IMAGE: ${cachedImagePath}]`);
+            modifiedMarkdown = modifiedMarkdown.replace(originalTag, imageTag);
           } catch (imgErr) {
             this.logger.error(`Error generating image for campaign ${i + 1}: ${imgErr.message}`);
             modifiedMarkdown = modifiedMarkdown.replace(originalTag, `[Error de Generación: ${imgErr.message}]`);
