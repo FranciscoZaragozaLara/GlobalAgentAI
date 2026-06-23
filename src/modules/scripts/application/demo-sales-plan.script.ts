@@ -96,8 +96,8 @@ Mantén un tono profesional, estratégico, altamente detallado y accionado por d
         this.researchStorageService.saveResearch(monthName, queryYear, realDeepResearchMarkdown);
       }
 
-      // --- FASE DE UNIFICACIÓN ESTRATÉGICA CON LLM (Gemini 2.5 Flash) ---
-      this.logger.log('Generating Unified Strategic Executive Report with Gemini 2.5 Flash...');
+      // --- FASE DE UNIFICACIÓN ESTRATÉGICA CON LLM (Gemini 3.5 Flash) ---
+      this.logger.log('Generating Unified Strategic Executive Report with Gemini 3.5 Flash...');
       const unificationPrompt = `
 Eres un Consultor Senior de Estrategia Comercial Automotriz para la marca Jetour & Soueast en México.
 
@@ -112,11 +112,20 @@ ${realDeepResearchMarkdown}
 INSTRUCCIONES DE REDACCIÓN Y COHESIÓN CRÍTICAS:
 1. **FUSIONA LOS DATOS CON LA ESTRATEGIA:** Enlaza y justifica la meta de ventas sugerida de cada modelo (ej. Jetour X70, Dashing, etc.) directamente con las temporalidades de campaña y tendencias cualitativas descritas en el Deep Research.
 2. **PLANTEA TAREAS COMERCIALES PUNTUALES:** Define una lista de tareas de negocio y marketing sumamente específicas y accionables para el equipo comercial, ligando metas y desempeños YoY.
-3. **FORMATO Y ESTRUCTURA (RESTRICCIONES IMPORTANTES):**
+3. **SECCIÓN EXCLUSIVA DE CAMPAÑAS DE MARKETING:**
+   Debes incluir obligatoriamente una sección titulada exactamente \`## Propuestas de Campañas de Marketing\`.
+   Dentro de esta sección, debes estructurar propuestas comerciales específicas para los próximos 3 meses, iniciando en el mes actual del periodo (Junio 2026). Debes incluir:
+   - Segmentación clara con subtítulos de nivel 3 (\`### Junio 2026\`, \`### Julio 2026\`, \`### Agosto 2026\`).
+   - Exactamente 3 campañas promocionales creativas para cada mes.
+   - Para cada campaña, incluye:
+     * **Concepto y Explicación:** Justificación estratégica del anuncio ligado a los modelos Jetour/Soueast.
+     * **Copys y Medios de Ads:** Texto publicitario completo listo para publicar en redes sociales o pauta digital (incluyendo hashtags relevantes).
+     * **Prompt de Imagen:** El prompt en inglés detallado y listo para copiar en un modelo de generación de imágenes (como Imagen 3, Midjourney, etc.) para crear el arte publicitario asociado.
+4. **FORMATO Y ESTRUCTURA (RESTRICCIONES IMPORTANTES):**
    - **PROHIBIDO EL USO DE TABLAS MARKDOWN:** No utilices caracteres como '|' o '-' para armar tablas. La tabla de métricas ya se dibuja de forma automatizada por el sistema. Todo el reporte debe redactarse exclusivamente en párrafos y viñetas simples (-).
    - **NO UTILICES FORMATOS DE NEGRITAS MARKDOWN:** Evita envolver palabras en asteriscos '**', ya que el PDF se encargará de formatear los encabezados de forma limpia.
    - Utiliza exclusivamente subtítulos lógicos de segundo y tercer nivel (## y ###), viñetas simples (-) y párrafos tradicionales.
-4. **TONO Y COMIENZO:** Mantén un tono formal, estratégico e imperativo en las tareas. Inicia directamente con el texto del reporte, sin saludos ni introducciones previas.
+5. **TONO Y COMIENZO:** Mantén un tono formal, estratégico e imperativo en las tareas. Inicia directamente con el texto del reporte, sin saludos ni introducciones previas.
       `;
 
       const unifiedStrategyMarkdown = await this.geminiService.generateText(unificationPrompt, 'gemini-3.5-flash');
