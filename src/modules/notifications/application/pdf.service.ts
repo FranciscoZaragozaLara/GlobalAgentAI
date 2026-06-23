@@ -277,6 +277,24 @@ export class PdfService {
           return;
         }
 
+        // Matches custom image markers [IMAGE: path]
+        const imageMatch = trimmed.match(/^\[IMAGE:\s*(.*?)\]$/i);
+        if (imageMatch) {
+          const imagePath = imageMatch[1].trim();
+          if (fs.existsSync(imagePath)) {
+            try {
+              if (doc.y > 650) {
+                doc.addPage();
+              }
+              doc.image(imagePath, { fit: [495, 120], align: 'center' });
+              doc.y += 130;
+            } catch (imgErr) {
+              this.logger.error(`Error embedding generated campaign image: ${imgErr.message}`);
+            }
+          }
+          return;
+        }
+
         // Clean double bold markers '**'
         const cleanLine = trimmed.replace(/\*\*/g, '');
 
