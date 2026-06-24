@@ -55,6 +55,37 @@ export class DemoSalesPlanScript extends BaseScript {
         this.logger.log(`Final PDF Report for ${agencyName} (${monthName} ${queryYear}) found in cache (Nivel 4 HIT). Loading from disk...`);
         const pdfBuffer = this.researchStorageService.getPdfReport(monthName, queryYear, agencyName);
 
+        // Get research markdown for attachment 1
+        const researchMd = this.researchStorageService.hasResearch(monthName, queryYear)
+          ? this.researchStorageService.getResearch(monthName, queryYear)
+          : 'Reporte de Deep Research no disponible en caché.';
+
+        // Get unified report to extract image catalog and generate images PDF for attachment 3
+        let imagesPdfBuffer: Buffer | undefined;
+        if (this.researchStorageService.hasUnifiedReport(monthName, queryYear, agencyName)) {
+          const unifiedReport = this.researchStorageService.getUnifiedReport(monthName, queryYear, agencyName);
+          const catalog = this.extractImagesCatalog(unifiedReport);
+          try {
+            imagesPdfBuffer = await this.pdfService.generateCampaignImagesPdf(monthName, agencyName, catalog);
+          } catch (pdfErr) {
+            this.logger.error(`Error generating cached images PDF: ${pdfErr.message}`);
+          }
+        }
+
+        const additionalAttachments: Array<{ content: Buffer; name: string }> = [
+          {
+            content: Buffer.from(researchMd, 'utf-8'),
+            name: `Investigacion_Mercado_Deep_Research_${monthName.replace(/\s+/g, '_')}_2026.txt`,
+          }
+        ];
+
+        if (imagesPdfBuffer) {
+          additionalAttachments.push({
+            content: imagesPdfBuffer,
+            name: `Catalogo_Imagenes_Campanas_${monthName.replace(/\s+/g, '_')}_2026.pdf`,
+          });
+        }
+
         // Build concise 2-paragraph email body
         const emailBodyText = `Estimado Director,
 
@@ -62,13 +93,15 @@ Adjuntamos el Plan Estratégico de Ventas y Marketing correspondiente al periodo
 
 El objetivo de ventas global recomendado para este periodo se establece en ${metrics.totals.suggestedGoal2026} unidades, lo que representa una tendencia de crecimiento anual acumulada del ${metrics.totals.growthRate}% en el trimestre de comparación. La justificación de metas individuales por modelo y las tácticas específicas de campañas de temporada y rotación de unidades seminuevas (Trade-in) se detallan a profundidad en el documento ejecutivo PDF anexo a este mensaje.`;
 
-        this.logger.log(`Sending cached unified Strategic Sales Plan email to ${emailDestination}...`);
+        this.logger.log(`Sending cached unified Strategic Sales Plan email with 3 attachments to ${emailDestination}...`);
         const emailSent = await this.emailService.sendMailWithAttachment(
           emailDestination,
           `Plan Estratégico de Ventas - ${monthName} 2026 (Caché)`,
           emailBodyText,
           pdfBuffer,
           `Plan_Estrategico_Ventas_${monthName.replace(/\s+/g, '_')}_2026.pdf`,
+          undefined,
+          additionalAttachments,
         );
 
         if (emailSent) {
@@ -91,6 +124,11 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
       // --- COMPROBAR NIVEL 2: REPORTE UNIFICADO CACHE ---
       let unifiedStrategyMarkdown = '';
       let fromUnifiedCache = false;
+      let realDeepResearchMarkdown = '';
+
+      if (this.researchStorageService.hasResearch(monthName, queryYear)) {
+        realDeepResearchMarkdown = this.researchStorageService.getResearch(monthName, queryYear);
+      }
 
       if (this.researchStorageService.hasUnifiedReport(monthName, queryYear, agencyName)) {
         this.logger.log(`Unified Strategy Report Markdown for ${agencyName} (${monthName} ${queryYear}) found in cache (Nivel 2 HIT). Loading...`);
@@ -98,11 +136,8 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
         fromUnifiedCache = true;
       } else {
         // --- EJECUCIÓN DE DEEP RESEARCH REAL CON CACHÉ (NIVEL 1) ---
-        let realDeepResearchMarkdown = '';
-        
-        if (this.researchStorageService.hasResearch(monthName, queryYear)) {
-          this.logger.log(`Deep Research for ${monthName} ${queryYear} found in cache (Nivel 1 HIT). Loading from disk...`);
-          realDeepResearchMarkdown = this.researchStorageService.getResearch(monthName, queryYear);
+        if (realDeepResearchMarkdown) {
+          this.logger.log(`Deep Research for ${monthName} ${queryYear} found in cache (Nivel 1 HIT). Loaded from disk.`);
         } else {
           this.logger.log(`Executing REAL Deep Research using Gemini 2.5 Pro for ${monthName} ${queryYear} (Nivel 1 MISS)...`);
           
@@ -303,13 +338,38 @@ Adjuntamos el Plan Estratégico de Ventas y Marketing correspondiente al periodo
 
 El objetivo de ventas global recomendado para este periodo se establece en ${metrics.totals.suggestedGoal2026} unidades, lo que representa una tendencia de crecimiento anual acumulada del ${metrics.totals.growthRate}% en el trimestre de comparación. La justificación de metas individuales por modelo y las tácticas específicas de campañas de temporada y rotación de unidades seminuevas (Trade-in) se detallan a profundidad en el documento ejecutivo PDF anexo a este mensaje.`;
 
-      this.logger.log(`Sending unified Strategic Sales Plan email to ${emailDestination}...`);
+      // Extract images catalog and generate images PDF
+      const catalog = this.extractImagesCatalog(modifiedMarkdown);
+      let imagesPdfBuffer: Buffer | undefined;
+      try {
+        imagesPdfBuffer = await this.pdfService.generateCampaignImagesPdf(monthName, agencyName, catalog);
+      } catch (pdfErr) {
+        this.logger.error(`Error generating campaign images PDF: ${pdfErr.message}`);
+      }
+
+      const additionalAttachments: Array<{ content: Buffer; name: string }> = [
+        {
+          content: Buffer.from(realDeepResearchMarkdown || 'Reporte de Deep Research no disponible.', 'utf-8'),
+          name: `Investigacion_Mercado_Deep_Research_${monthName.replace(/\s+/g, '_')}_2026.txt`,
+        }
+      ];
+
+      if (imagesPdfBuffer) {
+        additionalAttachments.push({
+          content: imagesPdfBuffer,
+          name: `Catalogo_Imagenes_Campanas_${monthName.replace(/\s+/g, '_')}_2026.pdf`,
+        });
+      }
+
+      this.logger.log(`Sending unified Strategic Sales Plan email with 3 attachments to ${emailDestination}...`);
       const emailSent = await this.emailService.sendMailWithAttachment(
         emailDestination,
         `Plan Estratégico de Ventas y Marketing - ${monthName} 2026`,
         emailBodyText,
         pdfBuffer,
         `Plan_Estrategico_Ventas_${monthName.replace(/\s+/g, '_')}_2026.pdf`,
+        undefined,
+        additionalAttachments,
       );
 
       if (emailSent) {
@@ -334,5 +394,41 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
         message: `Script execution failed: ${err.message}`,
       };
     }
+  }
+
+  private extractImagesCatalog(markdown: string): Array<{ path: string; prompt: string; model: string; filename: string }> {
+    const cacheImagesDir = path.join(process.cwd(), 'data', 'cache', 'images');
+    const catalog: Array<{ path: string; prompt: string; model: string; filename: string }> = [];
+
+    // Match modified IMAGE_DATA tags
+    const imageDataRegex = /\[IMAGE_DATA\|path:(.*?)\|prompt:(.*?)\|model:(.*?)\|file:(.*?)\]/gi;
+    const imageDataMatches = [...markdown.matchAll(imageDataRegex)];
+    if (imageDataMatches.length > 0) {
+      imageDataMatches.forEach((m) => {
+        catalog.push({
+          path: m[1].trim(),
+          prompt: m[2].trim(),
+          model: m[3].trim(),
+          filename: m[4].trim()
+        });
+      });
+      return catalog;
+    }
+
+    // Fallback to match original PROMPT tags
+    const promptRegex = /\[PROMPT:\s*(.*?)\]/gi;
+    const matches = [...markdown.matchAll(promptRegex)];
+    matches.forEach(([_, promptText]) => {
+      const promptHash = crypto.createHash('md5').update(promptText.trim().toLowerCase()).digest('hex');
+      const cachedImagePath = path.join(cacheImagesDir, `ad_cache_${promptHash}.jpg`);
+      catalog.push({
+        path: cachedImagePath,
+        prompt: promptText.trim(),
+        model: 'imagen-4.0-generate-001',
+        filename: `ad_cache_${promptHash}.jpg`
+      });
+    });
+
+    return catalog;
   }
 }

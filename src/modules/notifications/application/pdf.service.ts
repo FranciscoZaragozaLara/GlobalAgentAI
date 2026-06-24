@@ -475,6 +475,142 @@ export class PdfService {
   }
 
   /**
+   * Generates a separate PDF containing only the generated images, their prompt, model, and hash/filename info
+   */
+  async generateCampaignImagesPdf(
+    month: string,
+    agencyName: string,
+    images: Array<{ path: string; prompt: string; model: string; filename: string }>,
+  ): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
+      const chunks: Buffer[] = [];
+
+      const stream = new Writable({
+        write(chunk, encoding, callback) {
+          chunks.push(chunk);
+          callback();
+        },
+      });
+
+      doc.pipe(stream);
+
+      // Title & Subtitle
+      doc.fillColor('#1A365D')
+         .fontSize(20)
+         .font('Helvetica-Bold')
+         .text('REPORTE DE IMÁGENES Y CREATIVOS DE CAMPAÑA', { align: 'left' });
+      
+      doc.fillColor('#2B6CB0')
+         .fontSize(12)
+         .font('Helvetica')
+         .text(`Catálogo de Ads Generados por IA — ${month} 2026`, { align: 'left' });
+      
+      doc.moveDown(1);
+      doc.strokeColor('#CBD5E0')
+         .lineWidth(1)
+         .moveTo(50, doc.y)
+         .lineTo(545, doc.y)
+         .stroke();
+      doc.moveDown(1.5);
+
+      // Metadata card
+      doc.rect(50, doc.y, 495, 60).fill('#F7FAFC');
+      doc.fillColor('#2D3748')
+         .fontSize(9)
+         .font('Helvetica-Bold')
+         .text('METADATOS DEL REPORTE DE CREATIVOS', 70, doc.y + 12)
+         .font('Helvetica')
+         .text(`Distribuidor: ${agencyName}`, 70, doc.y + 28)
+         .text(`Fecha: ${new Date().toLocaleDateString()}`, 70, doc.y + 40)
+         .text(`Total Imágenes: ${images.length}`, 320, doc.y + 28)
+         .text(`Motor de Renderizado: Google Imagen 4.0`, 320, doc.y + 40);
+
+      doc.y += 65;
+
+      // Draw each image with metadata
+      images.forEach((img, idx) => {
+        if (doc.y > 580) {
+          doc.addPage();
+        } else if (idx > 0) {
+          doc.moveDown(2);
+        }
+
+        if (fs.existsSync(img.path)) {
+          try {
+            const currentY = doc.y;
+            doc.image(img.path, 50, currentY, { fit: [495, 140], align: 'center' });
+            doc.y = currentY + 145;
+
+            // Prompt & Model metadata
+            doc.fillColor('#2D3748')
+               .fontSize(8)
+               .font('Helvetica-Bold')
+               .text(`Imagen #${idx + 1}: ${img.filename}`, { align: 'left' });
+
+            doc.font('Helvetica-Oblique')
+               .fillColor('#4A5568')
+               .text(`Prompt: "${img.prompt}"`, { align: 'justify', width: 495 });
+
+            doc.font('Helvetica')
+               .fillColor('#718096')
+               .text(`Modelo: ${img.model} | Ruta: ${img.path}`, { align: 'left' });
+
+          } catch (err) {
+            doc.fillColor('#E53E3E')
+               .fontSize(10)
+               .text(`Error cargando imagen: ${err.message}`);
+          }
+        } else {
+          doc.fillColor('#E53E3E')
+             .fontSize(10)
+             .text(`Imagen no encontrada: ${img.filename}`);
+        }
+      });
+
+      // Page numbers footer
+      const range = doc.bufferedPageRange();
+      for (let i = 0; i < range.count; i++) {
+        doc.switchToPage(i);
+        doc.page.margins.top = 0;
+        doc.page.margins.bottom = 0;
+
+        // Header
+        if (i > 0) {
+          doc.strokeColor('#E2E8F0')
+             .lineWidth(0.5)
+             .moveTo(50, 40)
+             .lineTo(545, 40)
+             .stroke();
+
+          doc.fillColor('#718096')
+             .fontSize(8)
+             .font('Helvetica')
+             .text('REPORTES DE IMÁGENES DE ADS', 50, 28)
+             .text(`${month} 2026`, 300, 28, { align: 'right', width: 245 });
+        }
+
+        // Footer
+        doc.strokeColor('#E2E8F0')
+           .lineWidth(0.5)
+           .moveTo(50, 790)
+           .lineTo(545, 790)
+           .stroke();
+
+        doc.fillColor('#A0AEC0')
+           .fontSize(7)
+           .font('Helvetica')
+           .text('DOCUMENTO ADJUNTO CONFIDENCIAL - CATALOGO DE CREATIVOS DE MARKETING', 50, 798)
+           .text(`Página ${i + 1} de ${range.count}`, 300, 798, { align: 'right', width: 245 });
+      }
+
+      doc.end();
+      stream.on('finish', () => resolve(Buffer.concat(chunks)));
+      stream.on('error', (err) => reject(err));
+    });
+  }
+
+  /**
    * Keep compatibility signature for existing calls if any
    */
   async generateDummyPdf(title: string, agencyName: string = 'General'): Promise<Buffer> {
