@@ -16,6 +16,7 @@ export class PdfService {
     agencyName: string,
     metrics: any,
     deepResearchMarkdown: string,
+    bannerInfo?: { path: string; prompt: string; model: string; file: string },
   ): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
@@ -31,25 +32,39 @@ export class PdfService {
       doc.pipe(stream);
 
       // --- PAGE 1: PORTADA Y RESUMEN EJECUTIVO ---
-      // Try to draw the banner image
-      const bannerPath = path.join(process.cwd(), 'data', 'assets', 'sales_report_banner.png');
-      if (fs.existsSync(bannerPath)) {
+      // Try to draw the dynamic banner image
+      const imageStartY = 50;
+      const imageHeight = 120;
+      let hasBannerDrawn = false;
+
+      if (bannerInfo && fs.existsSync(bannerInfo.path)) {
         try {
-          doc.image(bannerPath, 50, 50, { fit: [495, 180], align: 'center' });
-          doc.moveDown(10.5); // Spacing after banner
+          doc.image(bannerInfo.path, 50, imageStartY, { fit: [495, imageHeight], align: 'center' });
+          
+          doc.fillColor('#718096')
+             .fontSize(6)
+             .font('Helvetica-Oblique')
+             .text(`"${bannerInfo.prompt.substring(0, 160)}..."`, 50, imageStartY + imageHeight + 4, { align: 'center', width: 495 });
+          doc.font('Helvetica')
+             .text(`Modelo: ${bannerInfo.model}  |  Archivo: ${bannerInfo.file}`, { align: 'center', width: 495 });
+          
+          hasBannerDrawn = true;
         } catch (imgErr) {
-          this.logger.error(`Error embedding banner image: ${imgErr.message}`);
-          doc.moveDown(2);
+          this.logger.error(`Error embedding dynamic banner image: ${imgErr.message}`);
         }
-      } else {
+      }
+
+      if (!hasBannerDrawn) {
         // Fallback banner placeholder styling
-        doc.rect(50, 50, 495, 150).fill('#1A365D');
+        doc.rect(50, 50, 495, imageHeight).fill('#1A365D');
         doc.fillColor('#FFFFFF')
            .fontSize(20)
            .font('Helvetica-Bold')
-           .text('JETOUR & SOUEAST MÉXICO', 70, 110);
-        doc.moveDown(9);
+           .text('JETOUR & SOUEAST MÉXICO', 70, 95);
       }
+
+      // Explicitly position doc.y to avoid any text overlap with the banner image
+      doc.y = imageStartY + imageHeight + 30;
 
       // Title & Subtitle
       doc.fillColor('#1A365D')
@@ -108,16 +123,19 @@ export class PdfService {
          .fontSize(9)
          .font('Helvetica-Bold')
          .text('Modelo', 60, tableStartY + 7)
-         .text('Trimestre 2026', 150, tableStartY + 7, { width: 70, align: 'center' })
-         .text('Trimestre 2025', 230, tableStartY + 7, { width: 70, align: 'center' })
+         .text('Trimestre 2025', 150, tableStartY + 7, { width: 70, align: 'center' })
+         .text('Trimestre 2026', 230, tableStartY + 7, { width: 70, align: 'center' })
          .text('Crec. YoY %', 310, tableStartY + 7, { width: 60, align: 'center' })
          .text('Junio 2025', 380, tableStartY + 7, { width: 70, align: 'center' })
          .text('Meta 2026', 460, tableStartY + 7, { width: 75, align: 'center' });
 
       let currentY = tableStartY + 22;
 
+      // Sort comparison records descending by current year's sales (Trimestre 2026)
+      const sortedComparison = [...metrics.comparison].sort((a: any, b: any) => b.sales3Months2026 - a.sales3Months2026);
+
       // Table Rows
-      metrics.comparison.forEach((item: any, index: number) => {
+      sortedComparison.forEach((item: any, index: number) => {
         // Zebra striping
         if (index % 2 === 0) {
           doc.rect(50, currentY, 495, 20).fill('#F7FAFC');
@@ -127,8 +145,8 @@ export class PdfService {
            .fontSize(9)
            .font('Helvetica')
            .text(item.model, 60, currentY + 5)
-           .text(item.sales3Months2026.toString(), 150, currentY + 5, { width: 70, align: 'center' })
-           .text(item.sales3Months2025.toString(), 230, currentY + 5, { width: 70, align: 'center' });
+           .text(item.sales3Months2025.toString(), 150, currentY + 5, { width: 70, align: 'center' })
+           .text(item.sales3Months2026.toString(), 230, currentY + 5, { width: 70, align: 'center' });
 
         const growthColor = item.growthRate >= 0 ? '#48BB78' : '#E53E3E';
         doc.fillColor(growthColor)
@@ -152,8 +170,8 @@ export class PdfService {
          .fontSize(9)
          .font('Helvetica-Bold')
          .text('TOTAL MARCA', 60, currentY + 6)
-         .text(metrics.totals.sales3Months2026.toString(), 150, currentY + 6, { width: 70, align: 'center' })
-         .text(metrics.totals.sales3Months2025.toString(), 230, currentY + 6, { width: 70, align: 'center' });
+         .text(metrics.totals.sales3Months2025.toString(), 150, currentY + 6, { width: 70, align: 'center' })
+         .text(metrics.totals.sales3Months2026.toString(), 230, currentY + 6, { width: 70, align: 'center' });
 
       const totalGrowthColor = metrics.totals.growthRate >= 0 ? '#48BB78' : '#E53E3E';
       doc.fillColor(totalGrowthColor)
@@ -167,6 +185,7 @@ export class PdfService {
       doc.y = currentY;
 
       // --- GRÁFICA VECTORIAL DE BARRAS DE OBJETIVOS (PDFKit Direct Drawing) ---
+      doc.x = 50; // Reset X to prevent right alignment overlap
       doc.fillColor('#1A365D')
          .fontSize(12)
          .font('Helvetica-Bold')
@@ -291,9 +310,10 @@ export class PdfService {
                 doc.addPage();
               }
               
-              // Draw Image
-              doc.image(imagePath, { fit: [495, 120], align: 'center' });
-              doc.y += 125;
+              // Draw Image at absolute coordinates based on current doc.y
+              const currentImageStartY = doc.y;
+              doc.image(imagePath, 50, currentImageStartY, { fit: [495, 120], align: 'center' });
+              doc.y = currentImageStartY + 125; // Compact spacing: 5pt below the maximum image height boundary (120)
 
               // Draw Caption
               doc.fillColor('#718096')
@@ -304,7 +324,7 @@ export class PdfService {
               doc.font('Helvetica')
                  .text(`Modelo: ${modelUsed}  |  Archivo: ${fileName}`, { align: 'center', width: 495 });
               
-              doc.moveDown(0.5);
+              doc.moveDown(0.8);
             } catch (imgErr) {
               this.logger.error(`Error embedding generated campaign image: ${imgErr.message}`);
             }
