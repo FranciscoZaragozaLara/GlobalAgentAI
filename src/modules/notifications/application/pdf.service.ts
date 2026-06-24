@@ -108,11 +108,23 @@ export class PdfService {
          .font('Helvetica-Bold')
          .text('1. Indicadores de Ventas e Históricos Comparativos');
       
+      const monthsEs = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+      const monthIdx = monthsEs.findIndex(m => m.toLowerCase().includes(month.toLowerCase()));
+      let prevMonthsNames = '';
+      if (monthIdx !== -1) {
+        const p1 = monthsEs[(monthIdx - 3 + 12) % 12].substring(0, 3);
+        const p2 = monthsEs[(monthIdx - 2 + 12) % 12].substring(0, 3);
+        const p3 = monthsEs[(monthIdx - 1 + 12) % 12].substring(0, 3);
+        prevMonthsNames = `${p1}-${p2}-${p3}`;
+      } else {
+        prevMonthsNames = 'Mar-Abr-May';
+      }
+
       doc.moveDown(0.5);
       doc.fillColor('#4A5568')
          .fontSize(10)
          .font('Helvetica')
-         .text('Comparativa del volumen acumulado de ventas del último trimestre (Mar-Abr-May) contra el año anterior, mes equivalente de 2025 y objetivo proyectado:');
+         .text(`Comparativa del volumen acumulado de ventas del último trimestre (${prevMonthsNames}) contra el año anterior, mes equivalente de 2025 y objetivo proyectado:`);
       
       doc.moveDown(1.5);
 
@@ -126,8 +138,8 @@ export class PdfService {
          .text('Trimestre 2025', 150, tableStartY + 7, { width: 70, align: 'center' })
          .text('Trimestre 2026', 230, tableStartY + 7, { width: 70, align: 'center' })
          .text('Crec. YoY %', 310, tableStartY + 7, { width: 60, align: 'center' })
-         .text('Junio 2025', 380, tableStartY + 7, { width: 70, align: 'center' })
-         .text('Meta 2026', 460, tableStartY + 7, { width: 75, align: 'center' });
+         .text(`${month} 2025`, 380, tableStartY + 7, { width: 70, align: 'center' })
+         .text(`Meta ${month} 2026`, 460, tableStartY + 7, { width: 75, align: 'center' });
 
       let currentY = tableStartY + 22;
 

@@ -22,8 +22,8 @@ export class SalesAnalyticsService {
    * Orchestrates the retrieval of past metrics and calculates performance/targets
    */
   async generateStrategyMetrics(year: number, month: number): Promise<{
-    raw2026: { march: SalesRecord[]; april: SalesRecord[]; may: SalesRecord[] };
-    raw2025: { march: SalesRecord[]; april: SalesRecord[]; may: SalesRecord[] };
+    raw2026: SalesRecord[][];
+    raw2025: SalesRecord[][];
     rawJune2025: SalesRecord[];
     comparison: PerformanceComparison[];
     totals: {
@@ -36,18 +36,26 @@ export class SalesAnalyticsService {
   }> {
     this.logger.log(`Generating sales strategy metrics comparison for Month ${month}/${year}...`);
 
-    // Calculate months in range (for June 2026, we query March, April, May)
-    // 3 months prior to June: March (3), April (4), May (5)
-    const prevMonths = [3, 4, 5];
+    // Calculate months in range (3 months prior to target month)
+    const prevMonths: { year: number; month: number }[] = [];
+    for (let i = 3; i >= 1; i--) {
+      let m = month - i;
+      let y = year;
+      if (m <= 0) {
+        m += 12;
+        y -= 1;
+      }
+      prevMonths.push({ year: y, month: m });
+    }
 
     // 1. Fetch 3 months of 2026
     const sales3Months2026 = await Promise.all(
-      prevMonths.map(m => this.salesDataService.getVentasResumenXModelo({ anio: year, mes: m })),
+      prevMonths.map(p => this.salesDataService.getVentasResumenXModelo({ anio: p.year, mes: p.month })),
     );
 
     // 2. Fetch 3 months of 2025
     const sales3Months2025 = await Promise.all(
-      prevMonths.map(m => this.salesDataService.getVentasResumenXModelo({ anio: year - 1, mes: m })),
+      prevMonths.map(p => this.salesDataService.getVentasResumenXModelo({ anio: p.year - 1, mes: p.month })),
     );
 
     // 3. Fetch June 2025 (target month of previous year)
@@ -142,8 +150,8 @@ export class SalesAnalyticsService {
     }
 
     return {
-      raw2026: { march: sales3Months2026[0], april: sales3Months2026[1], may: sales3Months2026[2] },
-      raw2025: { march: sales3Months2025[0], april: sales3Months2025[1], may: sales3Months2025[2] },
+      raw2026: sales3Months2026,
+      raw2025: sales3Months2025,
       rawJune2025: june2025Sales,
       comparison,
       totals: {

@@ -242,6 +242,19 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
           this.researchStorageService.saveResearch(monthName, queryYear, realDeepResearchMarkdown, researchMode);
         }
 
+        const monthsEs = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        const monthIdx = monthsEs.findIndex(m => m.toLowerCase().includes(monthName.toLowerCase()));
+        
+        let m1 = 'Junio 2026';
+        let m2 = 'Julio 2026';
+        let m3 = 'Agosto 2026';
+        
+        if (monthIdx !== -1) {
+          m1 = `${monthsEs[monthIdx]} 2026`;
+          m2 = `${monthsEs[(monthIdx + 1) % 12]} 2026`;
+          m3 = `${monthsEs[(monthIdx + 2) % 12]} 2026`;
+        }
+
         // --- FASE DE UNIFICACIÓN ESTRATÉGICA CON LLM (Gemini 3.5 Flash) (NIVEL 2 MISS) ---
         this.logger.log('Generating Unified Strategic Executive Report with Gemini 3.5 Flash...');
         const unificationPrompt = `
@@ -260,8 +273,8 @@ INSTRUCCIONES DE REDACCIÓN E IMPERATIVAS:
 2. **PLANTEA TAREAS COMERCIALES PUNTUALES:** Define una lista de tareas de negocio y marketing sumamente específicas y accionables para el equipo comercial, ligando metas y desempeños YoY.
 3. **SECCIÓN EXCLUSIVA DE CAMPAÑAS DE MARKETING:**
    Debes incluir obligatoriamente una sección titulada exactamente \`## Propuestas de Campañas de Marketing\`.
-   Dentro de esta sección, debes estructurar propuestas comerciales específicas para los próximos 3 meses, iniciando en el mes actual del periodo (Junio 2026). Debes incluir:
-   - Segmentación clara con subtítulos de nivel 3 (\`### Junio 2026\`, \`### Julio 2026\`, \`### Agosto 2026\`).
+   Dentro de esta sección, debes estructurar propuestas comerciales específicas para los próximos 3 meses, iniciando en el mes actual del periodo (${m1}). Debes incluir:
+   - Segmentación clara con subtítulos de nivel 3 (\`### ${m1}\`, \`### ${m2}\`, \`### ${m3}\`).
    - Exactamente 3 campañas promocionales creativas para cada mes.
    - **REGLA DE CAMPAÑA TRIMESTRAL DE G700:** Al menos una de las 9 campañas del trimestre (a lo largo de los 3 meses) DEBE estar dedicada a promover el nuevo modelo **Jetour G700** que se acaba de lanzar.
    - Para cada campaña, incluye:
