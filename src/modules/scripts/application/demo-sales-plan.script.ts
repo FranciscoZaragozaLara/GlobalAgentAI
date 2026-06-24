@@ -28,14 +28,14 @@ export class DemoSalesPlanScript extends BaseScript {
     super();
   }
 
-
-
   async execute(params: Record<string, any>): Promise<ScriptResult> {
     const emailDestination = params.email || 'frzaragoza.arcade@gmail.com';
     const agencyName = params.agencyName || 'Jetour Soueast Dealer Demo';
     const monthName = params.monthName || 'Mes Actual';
+    const researchMode = params.researchMode || 'Basica';
+    const reportMode = params.reportMode || 'Triple';
     
-    this.logger.log(`Starting execute of DemoSalesPlanScript target email: ${emailDestination}`);
+    this.logger.log(`Starting execute of DemoSalesPlanScript in mode [Research: ${researchMode} | Report: ${reportMode}] target email: ${emailDestination}`);
     try {
       // --- PASO DE AUTENTICACIÓN A PRUEBA ---
       this.logger.log('Validating Global DMS authentication credentials...');
@@ -45,103 +45,19 @@ export class DemoSalesPlanScript extends BaseScript {
       // --- PASO DE CÁLCULO DE TENDENCIAS Y MÉTRICAS HISTÓRICAS ---
       this.logger.log('Fetching and calculating historical sales trends YoY...');
       // Month parameter maps from parameter or defaults to 6 (June)
-      const queryMonth = params.monthName && params.monthName.toLowerCase().includes('julio') ? 7 : 6;
+      let queryMonth = 6;
+      if (monthName) {
+        const lowerMonth = monthName.toLowerCase();
+        if (lowerMonth.includes('julio')) queryMonth = 7;
+        else if (lowerMonth.includes('abril')) queryMonth = 4;
+        else if (lowerMonth.includes('junio')) queryMonth = 6;
+      }
       const queryYear = 2026;
       const metrics = await this.salesAnalyticsService.generateStrategyMetrics(queryYear, queryMonth);
       this.logger.log('Strategy comparison data and recommended targets calculated.');
 
-      // --- COMPROBAR NIVEL 4: FINAL EXECUTIVE PDF CACHE ---
-      if (this.researchStorageService.hasPdfReport(monthName, queryYear, agencyName)) {
-        this.logger.log(`Final PDF Report for ${agencyName} (${monthName} ${queryYear}) found in cache (Nivel 4 HIT). Loading from disk...`);
-        const pdfBuffer = this.researchStorageService.getPdfReport(monthName, queryYear, agencyName);
-
-        // Get research markdown for attachment 1
-        const researchMd = this.researchStorageService.hasResearch(monthName, queryYear)
-          ? this.researchStorageService.getResearch(monthName, queryYear)
-          : 'Reporte de Deep Research no disponible en caché.';
-
-        // Get unified report to extract image catalog and generate images PDF for attachment 3
-        let imagesPdfBuffer: Buffer | undefined;
-        if (this.researchStorageService.hasUnifiedReport(monthName, queryYear, agencyName)) {
-          const unifiedReport = this.researchStorageService.getUnifiedReport(monthName, queryYear, agencyName);
-          const catalog = this.extractImagesCatalog(unifiedReport);
-          try {
-            imagesPdfBuffer = await this.pdfService.generateCampaignImagesPdf(monthName, agencyName, catalog);
-          } catch (pdfErr) {
-            this.logger.error(`Error generating cached images PDF: ${pdfErr.message}`);
-          }
-        }
-
-        const additionalAttachments: Array<{ content: Buffer; name: string }> = [
-          {
-            content: Buffer.from(researchMd, 'utf-8'),
-            name: `Investigacion_Mercado_Deep_Research_${monthName.replace(/\s+/g, '_')}_2026.txt`,
-          }
-        ];
-
-        if (imagesPdfBuffer) {
-          additionalAttachments.push({
-            content: imagesPdfBuffer,
-            name: `Catalogo_Imagenes_Campanas_${monthName.replace(/\s+/g, '_')}_2026.pdf`,
-          });
-        }
-
-        // Build concise 2-paragraph email body
-        const emailBodyText = `Estimado Director,
-
-Adjuntamos el Plan Estratégico de Ventas y Marketing correspondiente al periodo de ${monthName} de 2026. Este reporte unifica el análisis cuantitativo de ventas históricas, las proyecciones de objetivos sugeridos por modelo y la investigación estratégica de tendencias de mercado (Deep Research) para impulsar el desempeño comercial de la marca Jetour y Soueast en México.
-
-El objetivo de ventas global recomendado para este periodo se establece en ${metrics.totals.suggestedGoal2026} unidades, lo que representa una tendencia de crecimiento anual acumulada del ${metrics.totals.growthRate}% en el trimestre de comparación. La justificación de metas individuales por modelo y las tácticas específicas de campañas de temporada y rotación de unidades seminuevas (Trade-in) se detallan a profundidad en el documento ejecutivo PDF anexo a este mensaje.`;
-
-        this.logger.log(`Sending cached unified Strategic Sales Plan email with 3 attachments to ${emailDestination}...`);
-        const emailSent = await this.emailService.sendMailWithAttachment(
-          emailDestination,
-          `Plan Estratégico de Ventas - ${monthName} 2026 (Caché)`,
-          emailBodyText,
-          pdfBuffer,
-          `Plan_Estrategico_Ventas_${monthName.replace(/\s+/g, '_')}_2026.pdf`,
-          undefined,
-          additionalAttachments,
-        );
-
-        if (emailSent) {
-          return {
-            success: true,
-            message: `Script executed successfully (CACHE HIT - PDF). Cached executive PDF report emailed to ${emailDestination}.`,
-            data: {
-              destination: emailDestination,
-              agency: agencyName,
-              month: monthName,
-              totals: metrics.totals,
-              cacheHit: 'PDF_REPORT_NIVEL_4'
-            },
-          };
-        } else {
-          throw new Error('Email delivery failed in Notifications service');
-        }
-      }
-
-      // --- COMPROBAR NIVEL 2: REPORTE UNIFICADO CACHE ---
-      let unifiedStrategyMarkdown = '';
-      let fromUnifiedCache = false;
-      let realDeepResearchMarkdown = '';
-
-      if (this.researchStorageService.hasResearch(monthName, queryYear)) {
-        realDeepResearchMarkdown = this.researchStorageService.getResearch(monthName, queryYear);
-      }
-
-      if (this.researchStorageService.hasUnifiedReport(monthName, queryYear, agencyName)) {
-        this.logger.log(`Unified Strategy Report Markdown for ${agencyName} (${monthName} ${queryYear}) found in cache (Nivel 2 HIT). Loading...`);
-        unifiedStrategyMarkdown = this.researchStorageService.getUnifiedReport(monthName, queryYear, agencyName);
-        fromUnifiedCache = true;
-      } else {
-        // --- EJECUCIÓN DE DEEP RESEARCH REAL CON CACHÉ (NIVEL 1) ---
-        if (realDeepResearchMarkdown) {
-          this.logger.log(`Deep Research for ${monthName} ${queryYear} found in cache (Nivel 1 HIT). Loaded from disk.`);
-        } else {
-          this.logger.log(`Executing REAL Deep Research using Gemini 2.5 Pro for ${monthName} ${queryYear} (Nivel 1 MISS)...`);
-          
-          const researchPrompt = `
+      // Share researchPrompt across both Single and Triple flows
+      const researchPrompt = `
 Eres un Consultor Senior de Estrategia de Negocios y Marketing Digital, experto en el mercado automotriz mexicano y especializado en el segmento de SUVs y vehículos de origen asiático. 
 
 Tu objetivo es realizar una investigación de mercado profunda y generar un Plan Estratégico Mensual (Deep Research) para la marca de automóviles Jetour y Soueast en México, correspondiente al periodo de: ${monthName} de 2026.
@@ -170,14 +86,160 @@ Genera tu respuesta en formato Markdown estructurado exactamente con las siguien
 ## 5. RIESGOS CLAVE DETECTADOS Y MITIGACIONES SUGERIDAS
 
 Mantén un tono profesional, estratégico, altamente detallado y accionado por datos. No uses generalidades; ofrece ideas prácticas y conceptos creativos de campañas listos para ser implementados por las agencias.
-          `;
+      `;
 
-          // Call Gemini 2.5 Pro (Using default model parameter)
-          realDeepResearchMarkdown = await this.geminiService.generateText(researchPrompt, 'gemini-2.5-pro');
-          this.logger.log('Real Deep Research Markdown generated from Gemini.');
+      // --- FLOW A: SINGLE DEEP RESEARCH ONLY ---
+      if (reportMode === 'Single') {
+        let researchMd = '';
+        let cacheHit = 'NONE';
+        
+        if (this.researchStorageService.hasResearch(monthName, queryYear, researchMode)) {
+          this.logger.log(`Deep Research found in cache (Nivel 1 HIT) for ${monthName} ${queryYear} (${researchMode}). Loading...`);
+          researchMd = this.researchStorageService.getResearch(monthName, queryYear, researchMode);
+          cacheHit = 'RESEARCH_NIVEL_1';
+        } else {
+          this.logger.log(`Executing REAL Deep Research (Nivel 1 MISS) using mode: ${researchMode}...`);
+          researchMd = await this.geminiService.generateDeepResearch(researchPrompt, researchMode);
+          this.researchStorageService.saveResearch(monthName, queryYear, researchMd, researchMode);
+        }
+
+        const additionalAttachments = [
+          {
+            content: Buffer.from(researchMd, 'utf-8'),
+            name: `Investigacion_Mercado_Deep_Research_${researchMode}_${monthName.replace(/\s+/g, '_')}_2026.txt`,
+          }
+        ];
+
+        const emailBodyText = `Estimado Director,
+
+Adjuntamos el reporte de investigación cualitativa de mercado (Deep Research) correspondiente al periodo de ${monthName} de 2026, generado bajo la modalidad: ${researchMode}.
+
+Este documento detalla las tendencias del consumidor, temporalidades y tácticas de venta sugeridas para el periodo comercial de referencia.`;
+
+        this.logger.log(`Sending Single Deep Research email to ${emailDestination}...`);
+        const emailSent = await this.emailService.sendMailWithAttachment(
+          emailDestination,
+          `Investigación de Mercado Deep Research (${researchMode}) - ${monthName} 2026`,
+          emailBodyText,
+          undefined,
+          undefined,
+          undefined,
+          additionalAttachments,
+        );
+
+        if (emailSent) {
+          return {
+            success: true,
+            message: `Script executed successfully. Deep Research (${researchMode}) report emailed to ${emailDestination}.`,
+            data: {
+              destination: emailDestination,
+              month: monthName,
+              researchMode,
+              reportMode,
+              cacheHit,
+            },
+          };
+        } else {
+          throw new Error('Email delivery failed in Notifications service');
+        }
+      }
+
+      // --- FLOW B: TRIPLE REPORT FLOW (MAIN PDF, DEEP RESEARCH, CAMPAIGN IMAGES CATALOG) ---
+
+      // --- COMPROBAR NIVEL 4: FINAL EXECUTIVE PDF CACHE ---
+      if (this.researchStorageService.hasPdfReport(monthName, queryYear, agencyName, researchMode)) {
+        this.logger.log(`Final PDF Report for ${agencyName} (${monthName} ${queryYear}) found in cache (Nivel 4 HIT). Loading from disk...`);
+        const pdfBuffer = this.researchStorageService.getPdfReport(monthName, queryYear, agencyName, researchMode);
+
+        // Get research markdown for attachment 1
+        const researchMd = this.researchStorageService.hasResearch(monthName, queryYear, researchMode)
+          ? this.researchStorageService.getResearch(monthName, queryYear, researchMode)
+          : 'Reporte de Deep Research no disponible en caché.';
+
+        // Get unified report to extract image catalog and generate images PDF for attachment 3
+        let imagesPdfBuffer: Buffer | undefined;
+        if (this.researchStorageService.hasUnifiedReport(monthName, queryYear, agencyName, researchMode)) {
+          const unifiedReport = this.researchStorageService.getUnifiedReport(monthName, queryYear, agencyName, researchMode);
+          const catalog = this.extractImagesCatalog(unifiedReport);
+          try {
+            imagesPdfBuffer = await this.pdfService.generateCampaignImagesPdf(monthName, agencyName, catalog);
+          } catch (pdfErr) {
+            this.logger.error(`Error generating cached images PDF: ${pdfErr.message}`);
+          }
+        }
+
+        const additionalAttachments: Array<{ content: Buffer; name: string }> = [
+          {
+            content: Buffer.from(researchMd, 'utf-8'),
+            name: `Investigacion_Mercado_Deep_Research_${researchMode}_${monthName.replace(/\s+/g, '_')}_2026.txt`,
+          }
+        ];
+
+        if (imagesPdfBuffer) {
+          additionalAttachments.push({
+            content: imagesPdfBuffer,
+            name: `Catalogo_Imagenes_Campanas_${monthName.replace(/\s+/g, '_')}_2026.pdf`,
+          });
+        }
+
+        const emailBodyText = `Estimado Director,
+
+Adjuntamos el Plan Estratégico de Ventas y Marketing correspondiente al periodo de ${monthName} de 2026. Este reporte unifica el análisis cuantitativo de ventas históricas, las proyecciones de objetivos sugeridos por modelo y la investigación estratégica de tendencias de mercado (Deep Research) para impulsar el desempeño comercial de la marca Jetour y Soueast en México.
+
+El objetivo de ventas global recomendado para este periodo se establece en ${metrics.totals.suggestedGoal2026} unidades, lo que representa una tendencia de crecimiento anual acumulada del ${metrics.totals.growthRate}% en el trimestre de comparación. La justificación de metas individuales por modelo y las tácticas específicas de campañas de temporada y rotación de unidades seminuevas (Trade-in) se detallan a profundidad en el documento ejecutivo PDF anexo a este mensaje.`;
+
+        this.logger.log(`Sending cached unified Strategic Sales Plan email with 3 attachments to ${emailDestination}...`);
+        const emailSent = await this.emailService.sendMailWithAttachment(
+          emailDestination,
+          `Plan Estratégico de Ventas - ${monthName} 2026 (Caché)`,
+          emailBodyText,
+          pdfBuffer,
+          `Plan_Estrategico_Ventas_${researchMode}_${monthName.replace(/\s+/g, '_')}_2026.pdf`,
+          undefined,
+          additionalAttachments,
+        );
+
+        if (emailSent) {
+          return {
+            success: true,
+            message: `Script executed successfully (CACHE HIT - PDF). Cached executive PDF report emailed to ${emailDestination}.`,
+            data: {
+              destination: emailDestination,
+              agency: agencyName,
+              month: monthName,
+              totals: metrics.totals,
+              cacheHit: 'PDF_REPORT_NIVEL_4'
+            },
+          };
+        } else {
+          throw new Error('Email delivery failed in Notifications service');
+        }
+      }
+
+      // --- COMPROBAR NIVEL 2: REPORTE UNIFICADO CACHE ---
+      let unifiedStrategyMarkdown = '';
+      let fromUnifiedCache = false;
+      let realDeepResearchMarkdown = '';
+
+      if (this.researchStorageService.hasResearch(monthName, queryYear, researchMode)) {
+        realDeepResearchMarkdown = this.researchStorageService.getResearch(monthName, queryYear, researchMode);
+      }
+
+      if (this.researchStorageService.hasUnifiedReport(monthName, queryYear, agencyName, researchMode)) {
+        this.logger.log(`Unified Strategy Report Markdown for ${agencyName} (${monthName} ${queryYear}) found in cache (Nivel 2 HIT). Loading...`);
+        unifiedStrategyMarkdown = this.researchStorageService.getUnifiedReport(monthName, queryYear, agencyName, researchMode);
+        fromUnifiedCache = true;
+      } else {
+        // --- EJECUCIÓN DE DEEP RESEARCH REAL CON CACHÉ (NIVEL 1) ---
+        if (realDeepResearchMarkdown) {
+          this.logger.log(`Deep Research for ${monthName} ${queryYear} found in cache (Nivel 1 HIT). Loaded from disk.`);
+        } else {
+          this.logger.log(`Executing REAL Deep Research using Gemini 2.5 Pro for ${monthName} ${queryYear} (Nivel 1 MISS)...`);
+          realDeepResearchMarkdown = await this.geminiService.generateDeepResearch(researchPrompt, researchMode);
+          this.logger.log(`Real Deep Research Markdown generated from Gemini using mode: ${researchMode}.`);
           
-          // Save to local disk cache
-          this.researchStorageService.saveResearch(monthName, queryYear, realDeepResearchMarkdown);
+          // Save to local disk cache with researchMode
+          this.researchStorageService.saveResearch(monthName, queryYear, realDeepResearchMarkdown, researchMode);
         }
 
         // --- FASE DE UNIFICACIÓN ESTRATÉGICA CON LLM (Gemini 3.5 Flash) (NIVEL 2 MISS) ---
@@ -193,7 +255,7 @@ ${JSON.stringify(metrics, null, 2)}
 REPORTE DEEP RESEARCH CUALITATIVO DE MERCADO:
 ${realDeepResearchMarkdown}
 
-INSTRUCCIONES DE REDACCIÓN Y COHESIÓN CRÍTICAS:
+INSTRUCCIONES DE REDACCIÓN E IMPERATIVAS:
 1. **FUSIONA LOS DATOS CON LA ESTRATEGIA:** Enlaza y justifica la meta de ventas sugerida de cada modelo (ej. Jetour X70, Dashing, etc.) directamente con las temporalidades de campaña y tendencias cualitativas descritas en el Deep Research.
 2. **PLANTEA TAREAS COMERCIALES PUNTUALES:** Define una lista de tareas de negocio y marketing sumamente específicas y accionables para el equipo comercial, ligando metas y desempeños YoY.
 3. **SECCIÓN EXCLUSIVA DE CAMPAÑAS DE MARKETING:**
@@ -205,10 +267,10 @@ INSTRUCCIONES DE REDACCIÓN Y COHESIÓN CRÍTICAS:
    - Para cada campaña, incluye:
      * **Concepto y Explicación:** Justificación estratégica del anuncio ligado a los modelos Jetour/Soueast.
      * **Copys y Medios de Ads:** Texto publicitario completo listo para publicar en redes sociales o pauta digital (incluyendo hashtags relevantes).
-     * **Prompt de Imagen:** El prompt en inglés detallado para la generación de la imagen publicitaria de la campaña. Debes escribirlo obligatoriamente en este formato exacto: [PROMPT: write the detailed English prompt here].
+     * **Prompt de Imagen:** El prompt en inglés detallado para la generación de la imagen publicitaria de la campaña. Escribe en este formato exacto: [PROMPT: write the detailed English prompt here].
        REGLAS CRÍTICAS PARA EL PROMPT DE IMAGEN:
-       - El prompt DEBE mencionar el modelo específico de vehículo Jetour/Soueast que se promueve en la campaña (ej. Dashing, S07, T2, G700).
-       - Como el modelo LLM/generador de imágenes puede no conocer el diseño exacto por su nombre, DEBES incluir en el prompt una breve descripción física y visual del automóvil basada en las siguientes guías:
+       - El prompt DEBE mencionar el modelo específico de vehículo Jetour/Soueast que se promueve (ej. Dashing, S07, T2, G700).
+       - Como el modelo generador de imágenes puede no conocer el diseño exacto por su nombre, DEBES incluir en el prompt una breve descripción física y visual del automóvil basada en las siguientes guías:
          * **Jetour Dashing:** "Jetour Dashing, a sleek, sporty and modern compact crossover SUV, featuring a futuristic split-grille front, flush pop-out door handles, sharp dynamic LED headlights, and a sporty rear spoiler"
          * **Soueast S07** / **Jetour S07**: "Soueast S07, a modern, elegant mid-size family SUV, with a cascading chrome front grille, horizontal panoramic LED rear taillight bar, and a premium panoramic sunroof"
          * **Jetour T2**: "Jetour T2, a rugged, boxy off-road SUV, with a bold horizontal front grid with illuminated letters, high ground clearance, squared-off wheel arches, and a rear-mounted square spare tire carrier"
@@ -228,7 +290,7 @@ INSTRUCCIONES DE REDACCIÓN Y COHESIÓN CRÍTICAS:
         this.logger.log('Unified Strategy Markdown successfully generated by Gemini 3.5 Flash.');
 
         // Save to Nivel 2 cache
-        this.researchStorageService.saveUnifiedReport(monthName, queryYear, agencyName, unifiedStrategyMarkdown);
+        this.researchStorageService.saveUnifiedReport(monthName, queryYear, agencyName, unifiedStrategyMarkdown, researchMode);
       }
 
       // --- FASE DE GENERACIÓN DE IMÁGENES DE ADS Y PORTADA CON CACHÉ (NIVEL 3: IMAGEN 4) ---
@@ -326,7 +388,7 @@ INSTRUCCIONES DE REDACCIÓN Y COHESIÓN CRÍTICAS:
 
       // Save to Nivel 4 cache ONLY if all images were successfully resolved/generated
       if (!anyImageGenerationFailed) {
-        this.researchStorageService.savePdfReport(monthName, queryYear, agencyName, pdfBuffer);
+        this.researchStorageService.savePdfReport(monthName, queryYear, agencyName, pdfBuffer, researchMode);
       } else {
         this.logger.warn(`Skipping Nivel 4 PDF Cache write because one or more ad images failed to generate. Next execution will retry.`);
       }
@@ -350,7 +412,7 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
       const additionalAttachments: Array<{ content: Buffer; name: string }> = [
         {
           content: Buffer.from(realDeepResearchMarkdown || 'Reporte de Deep Research no disponible.', 'utf-8'),
-          name: `Investigacion_Mercado_Deep_Research_${monthName.replace(/\s+/g, '_')}_2026.txt`,
+          name: `Investigacion_Mercado_Deep_Research_${researchMode}_${monthName.replace(/\s+/g, '_')}_2026.txt`,
         }
       ];
 
@@ -367,7 +429,7 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
         `Plan Estratégico de Ventas y Marketing - ${monthName} 2026`,
         emailBodyText,
         pdfBuffer,
-        `Plan_Estrategico_Ventas_${monthName.replace(/\s+/g, '_')}_2026.pdf`,
+        `Plan_Estrategico_Ventas_${researchMode}_${monthName.replace(/\s+/g, '_')}_2026.pdf`,
         undefined,
         additionalAttachments,
       );
@@ -397,9 +459,8 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
   }
 
   private extractImagesCatalog(markdown: string): Array<{ path: string; prompt: string; model: string; filename: string }> {
-    const cacheImagesDir = path.join(process.cwd(), 'data', 'cache', 'images');
     const catalog: Array<{ path: string; prompt: string; model: string; filename: string }> = [];
-
+    const cacheImagesDir = path.join(process.cwd(), 'data', 'cache', 'images');
     // Match modified IMAGE_DATA tags
     const imageDataRegex = /\[IMAGE_DATA\|path:(.*?)\|prompt:(.*?)\|model:(.*?)\|file:(.*?)\]/gi;
     const imageDataMatches = [...markdown.matchAll(imageDataRegex)];

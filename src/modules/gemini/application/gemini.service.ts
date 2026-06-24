@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleGenAI } from '@google/genai';
+import * as crypto from 'crypto';
+
 
 @Injectable()
 export class GeminiService {
@@ -42,6 +44,85 @@ export class GeminiService {
       this.logger.error(`Error calling Gemini API: ${error.message}`, error.stack);
       throw error;
     }
+  }
+
+  /**
+   * Runs Deep Research using basic model or background interaction agents (Intermediate / Advanced)
+   */
+  async generateDeepResearch(
+    prompt: string,
+    mode: string = 'Basica',
+  ): Promise<string> {
+    const uppercaseMode = mode.toUpperCase() === 'AVANZADA' ? 'Avanzada' : (mode.toUpperCase() === 'INTERMEDIA' ? 'Intermedia' : 'Basica');
+    const startTime = new Date();
+    const promptHash = crypto.createHash('md5').update(prompt.trim().toLowerCase()).digest('hex');
+
+    let outputText = '';
+    let modelOrAgentUsed = '';
+    let interactionId = 'N/A';
+
+    if (uppercaseMode === 'Basica') {
+      this.logger.log('Starting Basic Deep Research using gemini-2.5-pro...');
+      modelOrAgentUsed = 'gemini-2.5-pro';
+      outputText = await this.generateText(prompt, 'gemini-2.5-pro');
+    } else {
+      const agentName = uppercaseMode === 'Avanzada' ? 'deep-research-max-preview-04-2026' : 'deep-research-preview-04-2026';
+      modelOrAgentUsed = agentName;
+      this.logger.log(`Starting ${uppercaseMode} Deep Research in background via agent ${agentName}...`);
+
+      try {
+        const client = this.ai as any;
+        if (!client.interactions) {
+          throw new Error('SDK client.interactions is not supported in this runtime.');
+        }
+
+        let interaction = await client.interactions.create({
+          agent: agentName,
+          input: prompt,
+          background: true,
+        });
+
+        interactionId = interaction.id;
+        this.logger.log(`Interaction created successfully. ID: ${interaction.id}. Polling for status...`);
+
+        while (interaction.status !== 'completed' && interaction.status !== 'failed') {
+          this.logger.log(`Agent task status: ${interaction.status}. Waiting 10 seconds before polling...`);
+          await new Promise((resolve) => setTimeout(resolve, 10000));
+          interaction = await client.interactions.get(interaction.id);
+        }
+
+        if (interaction.status === 'completed') {
+          this.logger.log(`Deep Research successfully completed. Output length: ${interaction.output_text?.length || 0}`);
+          outputText = interaction.output_text || '';
+        } else {
+          const errorMsg = interaction.error || 'Unknown error occurred in background research';
+          throw new Error(`Background research failed: ${JSON.stringify(errorMsg)}`);
+        }
+      } catch (error) {
+        this.logger.error(`Error in generateDeepResearch (${uppercaseMode}): ${error.message}`, error.stack);
+        throw error;
+      }
+    }
+
+    const endTime = new Date();
+    const durationSeconds = Math.round((endTime.getTime() - startTime.getTime()) / 1000);
+    const outputHash = crypto.createHash('md5').update(outputText.trim().toLowerCase()).digest('hex');
+
+    const metadataHeader = `---
+METADATA DE INVESTIGACIÓN (TRACKING)
+------------------------------------
+Modalidad/Estrategia: ${uppercaseMode}
+Modelo/Agente Usado: ${modelOrAgentUsed}
+ID de Interacción: ${interactionId}
+Fecha de Investigación: ${startTime.toISOString()}
+Duración de Investigación: ${durationSeconds} segundos
+Hash del Prompt: ${promptHash}
+Hash de Respuesta: ${outputHash}
+---
+
+`;
+
+    return metadataHeader + outputText;
   }
 
   /**

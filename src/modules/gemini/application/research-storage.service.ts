@@ -24,84 +24,87 @@ export class ResearchStorageService {
   }
 
   // --- Tier 1: Deep Research Cache ---
-  private getResearchFilePath(month: string, year: number): string {
-    const filename = `deep-research-${month.toLowerCase().trim().replace(/\s+/g, '_')}-${year}.md`;
+  private getResearchFilePath(month: string, year: number, researchMode: string = 'Basica'): string {
+    const cleanMode = researchMode.toLowerCase().trim();
+    const filename = `deep-research-${cleanMode}-${month.toLowerCase().trim().replace(/\s+/g, '_')}-${year}.md`;
     return path.join(this.researchDir, filename);
   }
 
-  hasResearch(month: string, year: number): boolean {
-    const filePath = this.getResearchFilePath(month, year);
+  hasResearch(month: string, year: number, researchMode: string = 'Basica'): boolean {
+    const filePath = this.getResearchFilePath(month, year, researchMode);
     const exists = fs.existsSync(filePath);
-    this.logger.log(`Checking Deep Research Cache for ${month} ${year}: ${exists ? 'HIT' : 'MISS'}`);
+    this.logger.log(`Checking Deep Research Cache (${researchMode}) for ${month} ${year}: ${exists ? 'HIT' : 'MISS'}`);
     return exists;
   }
 
-  getResearch(month: string, year: number): string {
-    const filePath = this.getResearchFilePath(month, year);
+  getResearch(month: string, year: number, researchMode: string = 'Basica'): string {
+    const filePath = this.getResearchFilePath(month, year, researchMode);
     if (!fs.existsSync(filePath)) {
-      throw new Error(`Research report not found in storage cache for ${month} ${year}`);
+      throw new Error(`Research report not found in storage cache for ${month} ${year} (${researchMode})`);
     }
     return fs.readFileSync(filePath, 'utf-8');
   }
 
-  saveResearch(month: string, year: number, markdownContent: string): void {
-    const filePath = this.getResearchFilePath(month, year);
+  saveResearch(month: string, year: number, markdownContent: string, researchMode: string = 'Basica'): void {
+    const filePath = this.getResearchFilePath(month, year, researchMode);
     fs.writeFileSync(filePath, markdownContent, 'utf-8');
     this.logger.log(`Research report cached to disk: ${filePath}`);
   }
 
   // --- Tier 2: Unified Strategy Report (Pre-Images) Cache ---
-  private getUnifiedFilePath(month: string, year: number, agencyName: string): string {
+  private getUnifiedFilePath(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): string {
     const cleanAgency = agencyName.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-    const filename = `unified-report-${cleanAgency}-${month.toLowerCase().trim().replace(/\s+/g, '_')}-${year}.md`;
+    const cleanMode = researchMode.toLowerCase().trim();
+    const filename = `unified-report-${cleanMode}-${cleanAgency}-${month.toLowerCase().trim().replace(/\s+/g, '_')}-${year}.md`;
     return path.join(this.unifiedDir, filename);
   }
 
-  hasUnifiedReport(month: string, year: number, agencyName: string): boolean {
-    const filePath = this.getUnifiedFilePath(month, year, agencyName);
+  hasUnifiedReport(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): boolean {
+    const filePath = this.getUnifiedFilePath(month, year, agencyName, researchMode);
     const exists = fs.existsSync(filePath);
-    this.logger.log(`Checking Unified Strategy Report Cache for ${agencyName} (${month} ${year}): ${exists ? 'HIT' : 'MISS'}`);
+    this.logger.log(`Checking Unified Strategy Report Cache (${researchMode}) for ${agencyName} (${month} ${year}): ${exists ? 'HIT' : 'MISS'}`);
     return exists;
   }
 
-  getUnifiedReport(month: string, year: number, agencyName: string): string {
-    const filePath = this.getUnifiedFilePath(month, year, agencyName);
+  getUnifiedReport(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): string {
+    const filePath = this.getUnifiedFilePath(month, year, agencyName, researchMode);
     if (!fs.existsSync(filePath)) {
-      throw new Error(`Unified strategy report not found in cache for ${agencyName} (${month} ${year})`);
+      throw new Error(`Unified strategy report not found in cache for ${agencyName} (${month} ${year}) (${researchMode})`);
     }
     return fs.readFileSync(filePath, 'utf-8');
   }
 
-  saveUnifiedReport(month: string, year: number, agencyName: string, content: string): void {
-    const filePath = this.getUnifiedFilePath(month, year, agencyName);
+  saveUnifiedReport(month: string, year: number, agencyName: string, content: string, researchMode: string = 'Basica'): void {
+    const filePath = this.getUnifiedFilePath(month, year, agencyName, researchMode);
     fs.writeFileSync(filePath, content, 'utf-8');
     this.logger.log(`Unified strategy report cached to disk: ${filePath}`);
   }
 
   // --- Tier 4: Final Executive PDF Cache ---
-  private getPdfFilePath(month: string, year: number, agencyName: string): string {
+  private getPdfFilePath(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): string {
     const cleanAgency = agencyName.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-    const filename = `reporte-ejecutivo-${cleanAgency}-${month.toLowerCase().trim().replace(/\s+/g, '_')}-${year}.pdf`;
+    const cleanMode = researchMode.toLowerCase().trim();
+    const filename = `reporte-ejecutivo-${cleanMode}-${cleanAgency}-${month.toLowerCase().trim().replace(/\s+/g, '_')}-${year}.pdf`;
     return path.join(this.reportsDir, filename);
   }
 
-  hasPdfReport(month: string, year: number, agencyName: string): boolean {
-    const filePath = this.getPdfFilePath(month, year, agencyName);
+  hasPdfReport(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): boolean {
+    const filePath = this.getPdfFilePath(month, year, agencyName, researchMode);
     const exists = fs.existsSync(filePath);
-    this.logger.log(`Checking Final Executive PDF Cache for ${agencyName} (${month} ${year}): ${exists ? 'HIT' : 'MISS'}`);
+    this.logger.log(`Checking Final Executive PDF Cache (${researchMode}) for ${agencyName} (${month} ${year}): ${exists ? 'HIT' : 'MISS'}`);
     return exists;
   }
 
-  getPdfReport(month: string, year: number, agencyName: string): Buffer {
-    const filePath = this.getPdfFilePath(month, year, agencyName);
+  getPdfReport(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): Buffer {
+    const filePath = this.getPdfFilePath(month, year, agencyName, researchMode);
     if (!fs.existsSync(filePath)) {
-      throw new Error(`Final PDF report not found in cache for ${agencyName} (${month} ${year})`);
+      throw new Error(`Final PDF report not found in cache for ${agencyName} (${month} ${year}) (${researchMode})`);
     }
     return fs.readFileSync(filePath);
   }
 
-  savePdfReport(month: string, year: number, agencyName: string, pdfBuffer: Buffer): void {
-    const filePath = this.getPdfFilePath(month, year, agencyName);
+  savePdfReport(month: string, year: number, agencyName: string, pdfBuffer: Buffer, researchMode: string = 'Basica'): void {
+    const filePath = this.getPdfFilePath(month, year, agencyName, researchMode);
     fs.writeFileSync(filePath, pdfBuffer);
     this.logger.log(`Final executive PDF report cached to disk: ${filePath}`);
   }

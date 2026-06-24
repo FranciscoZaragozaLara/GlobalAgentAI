@@ -28,4 +28,24 @@ export class ExecuteScriptDto {
   @IsString()
   @IsOptional()
   monthName?: string;
+
+  @ApiProperty({
+    description: 'Modalidad de Deep Research a utilizar',
+    example: 'Basica',
+    required: false,
+    enum: ['Basica', 'Intermedia', 'Avanzada'],
+  })
+  @IsString()
+  @IsOptional()
+  researchMode?: string;
+
+  @ApiProperty({
+    description: 'Modo de reporte a enviar por correo',
+    example: 'Single',
+    required: false,
+    enum: ['Single', 'Triple'],
+  })
+  @IsString()
+  @IsOptional()
+  reportMode?: string;
 }
