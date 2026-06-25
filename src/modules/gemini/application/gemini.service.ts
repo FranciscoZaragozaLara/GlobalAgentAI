@@ -93,7 +93,26 @@ export class GeminiService {
 
         if (interaction.status === 'completed') {
           this.logger.log(`Deep Research successfully completed. Output length: ${interaction.output_text?.length || 0}`);
-          outputText = interaction.output_text || '';
+          
+          let fullText = '';
+          if (interaction.steps && Array.isArray(interaction.steps)) {
+            const modelOutputs = interaction.steps.filter((s: any) => s.type === 'model_output');
+            for (const step of modelOutputs) {
+              if (Array.isArray(step.content)) {
+                for (const item of step.content) {
+                  if (item.type === 'text' && item.text) {
+                    if (fullText && !fullText.endsWith('\n') && !item.text.startsWith('\n')) {
+                      fullText += '\n\n';
+                    }
+                    fullText += item.text;
+                  }
+                }
+              }
+            }
+          }
+          
+          outputText = fullText || interaction.output_text || '';
+          this.logger.log(`Reconstructed full output from steps. Total length: ${outputText.length}`);
         } else {
           const errorMsg = interaction.error || 'Unknown error occurred in background research';
           throw new Error(`Background research failed: ${JSON.stringify(errorMsg)}`);
