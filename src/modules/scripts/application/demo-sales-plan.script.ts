@@ -93,14 +93,14 @@ Mantén un tono profesional, estratégico, altamente detallado y accionado por d
         let researchMd = '';
         let cacheHit = 'NONE';
         
-        if (this.researchStorageService.hasResearch(monthName, queryYear, researchMode)) {
+        if (await this.researchStorageService.hasResearch(monthName, queryYear, researchMode)) {
           this.logger.log(`Deep Research found in cache (Nivel 1 HIT) for ${monthName} ${queryYear} (${researchMode}). Loading...`);
-          researchMd = this.researchStorageService.getResearch(monthName, queryYear, researchMode);
+          researchMd = await this.researchStorageService.getResearch(monthName, queryYear, researchMode);
           cacheHit = 'RESEARCH_NIVEL_1';
         } else {
           this.logger.log(`Executing REAL Deep Research (Nivel 1 MISS) using mode: ${researchMode}...`);
           researchMd = await this.geminiService.generateDeepResearch(researchPrompt, researchMode);
-          this.researchStorageService.saveResearch(monthName, queryYear, researchMd, researchMode);
+          await this.researchStorageService.saveResearch(monthName, queryYear, researchMd, researchMode);
         }
 
         const additionalAttachments = [
@@ -147,19 +147,19 @@ Este documento detalla las tendencias del consumidor, temporalidades y tácticas
       // --- FLOW B: TRIPLE REPORT FLOW (MAIN PDF, DEEP RESEARCH, CAMPAIGN IMAGES CATALOG) ---
 
       // --- COMPROBAR NIVEL 4: FINAL EXECUTIVE PDF CACHE ---
-      if (this.researchStorageService.hasPdfReport(monthName, queryYear, agencyName, researchMode)) {
+      if (await this.researchStorageService.hasPdfReport(monthName, queryYear, agencyName, researchMode)) {
         this.logger.log(`Final PDF Report for ${agencyName} (${monthName} ${queryYear}) found in cache (Nivel 4 HIT). Loading from disk...`);
-        const pdfBuffer = this.researchStorageService.getPdfReport(monthName, queryYear, agencyName, researchMode);
+        const pdfBuffer = await this.researchStorageService.getPdfReport(monthName, queryYear, agencyName, researchMode);
 
         // Get research markdown for attachment 1
-        const researchMd = this.researchStorageService.hasResearch(monthName, queryYear, researchMode)
-          ? this.researchStorageService.getResearch(monthName, queryYear, researchMode)
+        const researchMd = (await this.researchStorageService.hasResearch(monthName, queryYear, researchMode))
+          ? await this.researchStorageService.getResearch(monthName, queryYear, researchMode)
           : 'Reporte de Deep Research no disponible en caché.';
 
         // Get unified report to extract image catalog and generate images PDF for attachment 3
         let imagesPdfBuffer: Buffer | undefined;
-        if (this.researchStorageService.hasUnifiedReport(monthName, queryYear, agencyName, researchMode)) {
-          const unifiedReport = this.researchStorageService.getUnifiedReport(monthName, queryYear, agencyName, researchMode);
+        if (await this.researchStorageService.hasUnifiedReport(monthName, queryYear, agencyName, researchMode)) {
+          const unifiedReport = await this.researchStorageService.getUnifiedReport(monthName, queryYear, agencyName, researchMode);
           const catalog = this.extractImagesCatalog(unifiedReport);
           try {
             imagesPdfBuffer = await this.pdfService.generateCampaignImagesPdf(monthName, agencyName, catalog);
@@ -221,13 +221,13 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
       let fromUnifiedCache = false;
       let realDeepResearchMarkdown = '';
 
-      if (this.researchStorageService.hasResearch(monthName, queryYear, researchMode)) {
-        realDeepResearchMarkdown = this.researchStorageService.getResearch(monthName, queryYear, researchMode);
+      if (await this.researchStorageService.hasResearch(monthName, queryYear, researchMode)) {
+        realDeepResearchMarkdown = await this.researchStorageService.getResearch(monthName, queryYear, researchMode);
       }
 
-      if (this.researchStorageService.hasUnifiedReport(monthName, queryYear, agencyName, researchMode)) {
+      if (await this.researchStorageService.hasUnifiedReport(monthName, queryYear, agencyName, researchMode)) {
         this.logger.log(`Unified Strategy Report Markdown for ${agencyName} (${monthName} ${queryYear}) found in cache (Nivel 2 HIT). Loading...`);
-        unifiedStrategyMarkdown = this.researchStorageService.getUnifiedReport(monthName, queryYear, agencyName, researchMode);
+        unifiedStrategyMarkdown = await this.researchStorageService.getUnifiedReport(monthName, queryYear, agencyName, researchMode);
         fromUnifiedCache = true;
       } else {
         // --- EJECUCIÓN DE DEEP RESEARCH REAL CON CACHÉ (NIVEL 1) ---
@@ -239,7 +239,7 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
           this.logger.log(`Real Deep Research Markdown generated from Gemini using mode: ${researchMode}.`);
           
           // Save to local disk cache with researchMode
-          this.researchStorageService.saveResearch(monthName, queryYear, realDeepResearchMarkdown, researchMode);
+          await this.researchStorageService.saveResearch(monthName, queryYear, realDeepResearchMarkdown, researchMode);
         }
 
         const monthsEs = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -303,7 +303,7 @@ INSTRUCCIONES DE REDACCIÓN E IMPERATIVAS:
         this.logger.log('Unified Strategy Markdown successfully generated by Gemini 3.5 Flash.');
 
         // Save to Nivel 2 cache
-        this.researchStorageService.saveUnifiedReport(monthName, queryYear, agencyName, unifiedStrategyMarkdown, researchMode);
+        await this.researchStorageService.saveUnifiedReport(monthName, queryYear, agencyName, unifiedStrategyMarkdown, researchMode);
       }
 
       // --- FASE DE GENERACIÓN DE IMÁGENES DE ADS Y PORTADA CON CACHÉ (NIVEL 3: IMAGEN 4) ---
@@ -331,14 +331,17 @@ INSTRUCCIONES DE REDACCIÓN E IMPERATIVAS:
         file: bannerFilename
       };
 
-      if (fs.existsSync(bannerPath)) {
-        this.logger.log(`Dynamic cover banner found in CACHE (Nivel 3 HIT) (Hash: ${bannerHash}). Reusing...`);
+      if (await this.researchStorageService.hasCampaignImage(`banner_${bannerHash}`)) {
+        this.logger.log(`Dynamic cover banner found in S3 (Nivel 3 HIT) (Hash: ${bannerHash}). Downloading...`);
+        const bannerBuffer = await this.researchStorageService.getCampaignImage(`banner_${bannerHash}`);
+        fs.writeFileSync(bannerPath, bannerBuffer);
       } else {
         this.logger.log(`Generating dynamic cover banner (Nivel 3 MISS)...`);
         try {
           const bannerBuffer = await this.geminiService.generateImage(bannerPromptText + safetySuffix, bannerModelName);
           fs.writeFileSync(bannerPath, bannerBuffer);
-          this.logger.log(`Dynamic cover banner generated and saved to cache: ${bannerPath}`);
+          await this.researchStorageService.saveCampaignImage(`banner_${bannerHash}`, bannerBuffer);
+          this.logger.log(`Dynamic cover banner generated and saved to cache/S3.`);
         } catch (bannerErr) {
           this.logger.error(`Error generating dynamic cover banner: ${bannerErr.message}`);
           anyImageGenerationFailed = true;
@@ -365,9 +368,10 @@ INSTRUCCIONES DE REDACCIÓN E IMPERATIVAS:
         const modelName = 'imagen-4.0-generate-001';
         const imageTag = `[IMAGE_DATA|path:${cachedImagePath}|prompt:${promptText}|model:${modelName}|file:${filename}]`;
 
-        if (fs.existsSync(cachedImagePath)) {
-          this.logger.log(`Ad image ${i + 1}/${matches.length} found in CACHE (Nivel 3 HIT) (Hash: ${promptHash}). Reusing...`);
-          // Replace tag in Markdown with the cached image path metadata for PdfService to draw it
+        if (await this.researchStorageService.hasCampaignImage(promptHash)) {
+          this.logger.log(`Ad image ${i + 1}/${matches.length} found in S3 (Nivel 3 HIT) (Hash: ${promptHash}). Downloading...`);
+          const imageBuffer = await this.researchStorageService.getCampaignImage(promptHash);
+          fs.writeFileSync(cachedImagePath, imageBuffer);
           modifiedMarkdown = modifiedMarkdown.replace(originalTag, imageTag);
         } else {
           this.logger.log(`Generating ad image ${i + 1}/${matches.length} (Nivel 3 MISS) with prompt: "${promptText.substring(0, 60)}..."`);
@@ -377,7 +381,8 @@ INSTRUCCIONES DE REDACCIÓN E IMPERATIVAS:
             const finalPrompt = promptText + safetySuffix;
             const imageBuffer = await this.geminiService.generateImage(finalPrompt, modelName);
             fs.writeFileSync(cachedImagePath, imageBuffer);
-            this.logger.log(`Ad image generated and saved to cache: ${cachedImagePath}`);
+            await this.researchStorageService.saveCampaignImage(promptHash, imageBuffer);
+            this.logger.log(`Ad image generated and saved to cache/S3.`);
             
             modifiedMarkdown = modifiedMarkdown.replace(originalTag, imageTag);
           } catch (imgErr) {
@@ -401,7 +406,7 @@ INSTRUCCIONES DE REDACCIÓN E IMPERATIVAS:
 
       // Save to Nivel 4 cache ONLY if all images were successfully resolved/generated
       if (!anyImageGenerationFailed) {
-        this.researchStorageService.savePdfReport(monthName, queryYear, agencyName, pdfBuffer, researchMode);
+        await this.researchStorageService.savePdfReport(monthName, queryYear, agencyName, pdfBuffer, researchMode);
       } else {
         this.logger.warn(`Skipping Nivel 4 PDF Cache write because one or more ad images failed to generate. Next execution will retry.`);
       }
