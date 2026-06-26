@@ -28,7 +28,7 @@ export class ResearchStorageService {
 
   async saveResearch(month: string, year: number, markdownContent: string, researchMode: string = 'Basica'): Promise<void> {
     const key = this.getResearchS3Key(month, year, researchMode);
-    await this.s3Service.uploadFile(key, markdownContent, 'text/markdown');
+    await this.s3Service.uploadFile(key, markdownContent, 'text/markdown; charset=utf-8');
     this.logger.log(`Research report cached to S3: ${key}`);
   }
 
@@ -54,7 +54,7 @@ export class ResearchStorageService {
 
   async saveUnifiedReport(month: string, year: number, agencyName: string, content: string, researchMode: string = 'Basica'): Promise<void> {
     const key = this.getUnifiedS3Key(month, year, agencyName, researchMode);
-    await this.s3Service.uploadFile(key, content, 'text/markdown');
+    await this.s3Service.uploadFile(key, content, 'text/markdown; charset=utf-8');
     this.logger.log(`Unified strategy report cached to S3: ${key}`);
   }
 
