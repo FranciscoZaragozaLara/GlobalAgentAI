@@ -57,7 +57,19 @@ export default function Dashboard() {
   // Form states for executing new strategy
   const [email, setEmail] = useState("frzaragoza.arcade@gmail.com");
   const [agencyName, setAgencyName] = useState("Jetour Soueast Dealer Demo");
-  const [monthName, setMonthName] = useState("Julio");
+  const [selectedMonth, setSelectedMonth] = useState(6); // Julio (6)
+  const [selectedYear, setSelectedYear] = useState(2026);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  const MONTHS_SPANISH = useMemo(() => [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+  ], []);
+
+  const monthName = useMemo(() => {
+    return `${MONTHS_SPANISH[selectedMonth]} ${selectedYear}`;
+  }, [selectedMonth, selectedYear, MONTHS_SPANISH]);
+
   const [researchMode, setResearchMode] = useState("Basica");
   const [reportMode, setReportMode] = useState("Triple");
 
@@ -452,19 +464,65 @@ export default function Dashboard() {
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <div>
+                <div className="relative">
                   <label className="block text-xs text-zinc-400 font-semibold mb-1">Mes / Periodo</label>
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-3 w-4 h-4 text-zinc-500" />
-                    <input
-                      type="text"
-                      required
-                      value={monthName}
-                      onChange={(e) => setMonthName(e.target.value)}
-                      className="w-full bg-zinc-950 border border-zinc-800 focus:border-indigo-500/50 rounded-lg py-2 pl-9 pr-3 text-sm focus:outline-none text-zinc-200 placeholder-zinc-600"
-                      placeholder="Julio"
-                    />
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowDatePicker(!showDatePicker)}
+                    className="w-full bg-zinc-950 border border-zinc-800 focus:border-indigo-500/50 rounded-lg py-2 pl-9 pr-3 text-sm focus:outline-none text-zinc-200 text-left flex items-center justify-between cursor-pointer"
+                  >
+                    <span className="absolute left-3 top-3.5"><Calendar className="w-4 h-4 text-zinc-500" /></span>
+                    <span>{MONTHS_SPANISH[selectedMonth]} {selectedYear}</span>
+                    <span className="text-zinc-500 text-xs">▼</span>
+                  </button>
+
+                  {showDatePicker && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-10"
+                        onClick={() => setShowDatePicker(false)}
+                      />
+                      <div className="absolute left-0 mt-2 p-3 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl z-20 w-64">
+                        <div className="flex items-center justify-between border-b border-zinc-850 pb-2 mb-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedYear(prev => prev - 1)}
+                            className="p-1 hover:bg-zinc-800 rounded text-zinc-400 hover:text-white transition-all text-xs font-bold"
+                          >
+                            &larr;
+                          </button>
+                          <span className="text-sm font-bold text-zinc-200">{selectedYear}</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedYear(prev => prev + 1)}
+                            className="p-1 hover:bg-zinc-800 rounded text-zinc-400 hover:text-white transition-all text-xs font-bold"
+                          >
+                            &rarr;
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-1">
+                          {MONTHS_SPANISH.map((m, idx) => (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => {
+                                setSelectedMonth(idx);
+                                setShowDatePicker(false);
+                              }}
+                              className={`py-1.5 px-2 text-xs font-semibold rounded text-center transition-all cursor-pointer ${
+                                selectedMonth === idx
+                                  ? "bg-indigo-600 text-white shadow-md"
+                                  : "bg-zinc-950/40 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+                              }`}
+                            >
+                              {m.substring(0, 3)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div>
