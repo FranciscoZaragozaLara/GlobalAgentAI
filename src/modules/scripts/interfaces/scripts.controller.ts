@@ -16,6 +16,13 @@ export class ScriptsController {
     return this.scriptRunnerService.getAvailableScripts();
   }
 
+  @Get('logs')
+  @ApiOperation({ summary: 'Obtener historial de logs de ejecución y URLs firmadas de artefactos' })
+  @ApiResponse({ status: 200, description: 'Historial de logs devuelto con éxito' })
+  async getLogs() {
+    return await this.scriptRunnerService.getExecutionLogs();
+  }
+
   @Post(':scriptName/execute')
   @ApiOperation({ summary: 'Ejecutar un script registrado de forma síncrona' })
   @ApiResponse({ status: 200, description: 'Script ejecutado con éxito' })

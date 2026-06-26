@@ -8,7 +8,7 @@ export class ResearchStorageService {
   constructor(private readonly s3Service: S3Service) {}
 
   // --- Tier 1: Deep Research Cache ---
-  private getResearchS3Key(month: string, year: number, researchMode: string = 'Basica'): string {
+  getResearchS3Key(month: string, year: number, researchMode: string = 'Basica'): string {
     const cleanMode = researchMode.toLowerCase().trim();
     const filename = `deep-research-${cleanMode}-${month.toLowerCase().trim().replace(/\s+/g, '_')}-${year}.md`;
     return `research/${filename}`;
@@ -33,7 +33,7 @@ export class ResearchStorageService {
   }
 
   // --- Tier 2: Unified Strategy Report Cache ---
-  private getUnifiedS3Key(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): string {
+  getUnifiedS3Key(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): string {
     const cleanAgency = agencyName.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
     const cleanMode = researchMode.toLowerCase().trim();
     const filename = `unified-report-${cleanMode}-${cleanAgency}-${month.toLowerCase().trim().replace(/\s+/g, '_')}-${year}.md`;
@@ -59,7 +59,7 @@ export class ResearchStorageService {
   }
 
   // --- Tier 4: Final Executive PDF Cache ---
-  private getPdfS3Key(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): string {
+  getPdfS3Key(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): string {
     const cleanAgency = agencyName.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
     const cleanMode = researchMode.toLowerCase().trim();
     const filename = `reporte-ejecutivo-${cleanMode}-${cleanAgency}-${month.toLowerCase().trim().replace(/\s+/g, '_')}-${year}.pdf`;
@@ -82,6 +82,30 @@ export class ResearchStorageService {
     const key = this.getPdfS3Key(month, year, agencyName, researchMode);
     await this.s3Service.uploadFile(key, pdfBuffer, 'application/pdf');
     this.logger.log(`Final executive PDF report cached to S3: ${key}`);
+  }
+
+  // --- Tier 4b: Campaign Images PDF Cache ---
+  getImagesPdfS3Key(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): string {
+    const cleanAgency = agencyName.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    const cleanMode = researchMode.toLowerCase().trim();
+    const filename = `catalogo-imagenes-${cleanMode}-${cleanAgency}-${month.toLowerCase().trim().replace(/\s+/g, '_')}-${year}.pdf`;
+    return `reports/${filename}`;
+  }
+
+  async hasImagesPdfReport(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): Promise<boolean> {
+    const key = this.getImagesPdfS3Key(month, year, agencyName, researchMode);
+    return await this.s3Service.fileExists(key);
+  }
+
+  async getImagesPdfReport(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): Promise<Buffer> {
+    const key = this.getImagesPdfS3Key(month, year, agencyName, researchMode);
+    return await this.s3Service.downloadFile(key);
+  }
+
+  async saveImagesPdfReport(month: string, year: number, agencyName: string, pdfBuffer: Buffer, researchMode: string = 'Basica'): Promise<void> {
+    const key = this.getImagesPdfS3Key(month, year, agencyName, researchMode);
+    await this.s3Service.uploadFile(key, pdfBuffer, 'application/pdf');
+    this.logger.log(`Campaign images PDF report cached to S3: ${key}`);
   }
 
   // --- Tier 5: Campaign Images Storage ---

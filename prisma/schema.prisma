@@ -1,0 +1,27 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model ExecutionLog {
+  id            String   @id @default(uuid())
+  agencyName    String
+  monthName     String
+  researchMode  String
+  reportMode    String
+  status        String   // SUCCESS, FAILED
+  executionTime Float    // Tiempo de ejecución en segundos
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+
+  // Archivos en S3
+  researchS3Key String?
+  pdfS3Key      String?
+  imagesS3Key   String?
+}

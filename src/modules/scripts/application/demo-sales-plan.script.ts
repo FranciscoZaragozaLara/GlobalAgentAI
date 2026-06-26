@@ -7,6 +7,8 @@ import { GeminiService } from '../../gemini/application/gemini.service';
 import { AuthService } from '../../auth/application/auth.service';
 import { SalesAnalyticsService } from '../../external-data/application/sales-analytics.service';
 import { ResearchStorageService } from '../../gemini/application/research-storage.service';
+import { PrismaService } from '../../database/prisma.service';
+import { performance } from 'perf_hooks';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -24,11 +26,13 @@ export class DemoSalesPlanScript extends BaseScript {
     private readonly authService: AuthService,
     private readonly salesAnalyticsService: SalesAnalyticsService,
     private readonly researchStorageService: ResearchStorageService,
+    private readonly prisma: PrismaService,
   ) {
     super();
   }
 
   async execute(params: Record<string, any>): Promise<ScriptResult> {
+    const startTime = performance.now();
     const emailDestination = params.email || 'frzaragoza.arcade@gmail.com';
     const agencyName = params.agencyName || 'Jetour Soueast Dealer Demo';
     const monthName = params.monthName || 'Mes Actual';
@@ -128,6 +132,20 @@ Este documento detalla las tendencias del consumidor, temporalidades y tácticas
         );
 
         if (emailSent) {
+          const endTime = performance.now();
+          const executionTime = parseFloat(((endTime - startTime) / 1000).toFixed(2));
+          await this.prisma.executionLog.create({
+            data: {
+              agencyName,
+              monthName,
+              researchMode,
+              reportMode,
+              status: 'SUCCESS',
+              executionTime,
+              researchS3Key: this.researchStorageService.getResearchS3Key(monthName, queryYear, researchMode),
+            },
+          }).catch(dbErr => this.logger.error(`Failed to save execution log to DB: ${dbErr.message}`));
+
           return {
             success: true,
             message: `Script executed successfully. Deep Research (${researchMode}) report emailed to ${emailDestination}.`,
@@ -158,11 +176,15 @@ Este documento detalla las tendencias del consumidor, temporalidades y tácticas
 
         // Get unified report to extract image catalog and generate images PDF for attachment 3
         let imagesPdfBuffer: Buffer | undefined;
-        if (await this.researchStorageService.hasUnifiedReport(monthName, queryYear, agencyName, researchMode)) {
+        if (await this.researchStorageService.hasImagesPdfReport(monthName, queryYear, agencyName, researchMode)) {
+          this.logger.log(`Images PDF Report found in cache (Nivel 4.5 HIT). Loading from S3...`);
+          imagesPdfBuffer = await this.researchStorageService.getImagesPdfReport(monthName, queryYear, agencyName, researchMode);
+        } else if (await this.researchStorageService.hasUnifiedReport(monthName, queryYear, agencyName, researchMode)) {
           const unifiedReport = await this.researchStorageService.getUnifiedReport(monthName, queryYear, agencyName, researchMode);
           const catalog = this.extractImagesCatalog(unifiedReport);
           try {
             imagesPdfBuffer = await this.pdfService.generateCampaignImagesPdf(monthName, agencyName, catalog);
+            await this.researchStorageService.saveImagesPdfReport(monthName, queryYear, agencyName, imagesPdfBuffer, researchMode);
           } catch (pdfErr) {
             this.logger.error(`Error generating cached images PDF: ${pdfErr.message}`);
           }
@@ -200,6 +222,22 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
         );
 
         if (emailSent) {
+          const endTime = performance.now();
+          const executionTime = parseFloat(((endTime - startTime) / 1000).toFixed(2));
+          await this.prisma.executionLog.create({
+            data: {
+              agencyName,
+              monthName,
+              researchMode,
+              reportMode,
+              status: 'SUCCESS',
+              executionTime,
+              researchS3Key: this.researchStorageService.getResearchS3Key(monthName, queryYear, researchMode),
+              pdfS3Key: this.researchStorageService.getPdfS3Key(monthName, queryYear, agencyName, researchMode),
+              imagesS3Key: this.researchStorageService.getImagesPdfS3Key(monthName, queryYear, agencyName, researchMode),
+            },
+          }).catch(dbErr => this.logger.error(`Failed to save execution log to DB: ${dbErr.message}`));
+
           return {
             success: true,
             message: `Script executed successfully (CACHE HIT - PDF). Cached executive PDF report emailed to ${emailDestination}.`,
@@ -423,6 +461,9 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
       let imagesPdfBuffer: Buffer | undefined;
       try {
         imagesPdfBuffer = await this.pdfService.generateCampaignImagesPdf(monthName, agencyName, catalog);
+        if (imagesPdfBuffer && !anyImageGenerationFailed) {
+          await this.researchStorageService.saveImagesPdfReport(monthName, queryYear, agencyName, imagesPdfBuffer, researchMode);
+        }
       } catch (pdfErr) {
         this.logger.error(`Error generating campaign images PDF: ${pdfErr.message}`);
       }
@@ -453,6 +494,22 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
       );
 
       if (emailSent) {
+        const endTime = performance.now();
+        const executionTime = parseFloat(((endTime - startTime) / 1000).toFixed(2));
+        await this.prisma.executionLog.create({
+          data: {
+            agencyName,
+            monthName,
+            researchMode,
+            reportMode,
+            status: 'SUCCESS',
+            executionTime,
+            researchS3Key: this.researchStorageService.getResearchS3Key(monthName, queryYear, researchMode),
+            pdfS3Key: this.researchStorageService.getPdfS3Key(monthName, queryYear, agencyName, researchMode),
+            imagesS3Key: imagesPdfBuffer ? this.researchStorageService.getImagesPdfS3Key(monthName, queryYear, agencyName, researchMode) : null,
+          },
+        }).catch(dbErr => this.logger.error(`Failed to save execution log to DB: ${dbErr.message}`));
+
         return {
           success: true,
           message: `Script executed successfully. Unified executive PDF report emailed to ${emailDestination}.`,
@@ -469,6 +526,20 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
       }
     } catch (err) {
       this.logger.error(`Error executing script: ${err.message}`, err.stack);
+      const endTime = performance.now();
+      const executionTime = parseFloat(((endTime - startTime) / 1000).toFixed(2));
+      await this.prisma.executionLog.create({
+        data: {
+          agencyName,
+          monthName,
+          researchMode,
+          reportMode,
+          status: 'FAILED',
+          executionTime,
+          errorMessage: err.message,
+        },
+      }).catch(dbErr => this.logger.error(`Failed to save execution log to DB: ${dbErr.message}`));
+
       return {
         success: false,
         message: `Script execution failed: ${err.message}`,

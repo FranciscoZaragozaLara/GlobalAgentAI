@@ -2,6 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { BaseScript } from './base-script';
 import { DemoSalesPlanScript } from './demo-sales-plan.script';
 import { ScriptResult } from '../domain/script.types';
+import { PrismaService } from '../../database/prisma.service';
+import { ResearchStorageService } from '../../gemini/application/research-storage.service';
 
 @Injectable()
 export class ScriptRunnerService {
@@ -9,6 +11,8 @@ export class ScriptRunnerService {
 
   constructor(
     private readonly demoSalesPlanScript: DemoSalesPlanScript,
+    private readonly prisma: PrismaService,
+    private readonly researchStorageService: ResearchStorageService,
   ) {
     // Register available scripts
     this.registerScript(this.demoSalesPlanScript);
@@ -32,5 +36,36 @@ export class ScriptRunnerService {
     }
 
     return await script.execute(params);
+  }
+
+  async getExecutionLogs() {
+    const logs = await this.prisma.executionLog.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return await Promise.all(
+      logs.map(async (log) => {
+        let researchUrl: string | null = null;
+        let pdfUrl: string | null = null;
+        let imagesUrl: string | null = null;
+
+        if (log.researchS3Key) {
+          researchUrl = await this.researchStorageService.getSignedUrl(log.researchS3Key);
+        }
+        if (log.pdfS3Key) {
+          pdfUrl = await this.researchStorageService.getSignedUrl(log.pdfS3Key);
+        }
+        if (log.imagesS3Key) {
+          imagesUrl = await this.researchStorageService.getSignedUrl(log.imagesS3Key);
+        }
+
+        return {
+          ...log,
+          researchUrl,
+          pdfUrl,
+          imagesUrl,
+        };
+      })
+    );
   }
 }
