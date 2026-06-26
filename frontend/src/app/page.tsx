@@ -555,7 +555,8 @@ export default function Dashboard() {
                     className="w-full bg-zinc-950 border border-zinc-800 focus:border-indigo-500/50 rounded-lg py-2 pl-9 pr-3 text-sm focus:outline-none text-zinc-200 appearance-none cursor-pointer"
                   >
                     <option value="Basica">Básica (Rápida)</option>
-                    <option value="Completa">Completa (Profunda)</option>
+                    <option value="Intermedia">Intermedia (Agente)</option>
+                    <option value="Avanzada">Avanzada (Agente Pro)</option>
                   </select>
                 </div>
               </div>
