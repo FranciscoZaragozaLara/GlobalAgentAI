@@ -48,7 +48,7 @@ export class SalesAnalyticsService {
       prevMonths.push({ year: y, month: m });
     }
 
-    const filterOptions = idDistribuidor ? {
+    const filterOptions = (idDistribuidor && idDistribuidor.trim() !== '') ? {
       buscaDistribuidor: 1,
       idDistribuidor: [idDistribuidor]
     } : {};

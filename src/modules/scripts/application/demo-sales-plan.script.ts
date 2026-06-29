@@ -528,7 +528,7 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
             const dealerStartTime = performance.now();
             
             // Extract attributes safely with fallbacks
-            const distId = (dealer.idDistribuidor || dealer.distribuidorID || dealer.id || '').toString();
+            const distId = (dealer.dealerId || dealer.idDistribuidor || dealer.distribuidorID || dealer.id || '').toString();
             const distName = dealer.nombreComercial || dealer.nombre || dealer.distribuidor || `Distribuidor ${distId}`;
             const razonSocial = dealer.razonSocial || dealer.razon_social || distName;
             const ciudad = dealer.ciudad || dealer.municipio || '';
