@@ -64,12 +64,31 @@ export class AuthService {
         urlImagen: '',
       };
 
-      const response = await axios.post(url, payload, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'text/plain',
-        },
-      });
+      let response;
+      let attempts = 0;
+      const maxAttempts = 3;
+      let delay = 1000;
+
+      while (attempts < maxAttempts) {
+        try {
+          attempts++;
+          response = await axios.post(url, payload, {
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'text/plain',
+            },
+            timeout: 15000,
+          });
+          break;
+        } catch (err) {
+          this.logger.warn(`Auth connection attempt ${attempts} failed: ${err.message}.`);
+          if (attempts >= maxAttempts) {
+            throw err;
+          }
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay *= 2;
+        }
+      }
 
       if (response.data && response.data.response === 'OK' && response.data.results) {
         const results = response.data.results;
