@@ -17,8 +17,8 @@ export interface SalesQueryFilter {
   busquedaPeriodo?: number;
   fechaFinal?: string;
   fechaInicial?: string;
-  idDistribuidor?: number[];
-  idRegion?: number[];
+  idDistribuidor?: (string | number)[];
+  idRegion?: (string | number)[];
   modelo?: string;
   page?: number;
   pageSize?: number;

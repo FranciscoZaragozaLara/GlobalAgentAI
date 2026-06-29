@@ -23,6 +23,13 @@ export class ScriptsController {
     return await this.scriptRunnerService.getExecutionLogs();
   }
 
+  @Get('logs/:parentLogId/dealers')
+  @ApiOperation({ summary: 'Obtener logs de ejecuciones atómicas de dealers asociados a un log máster' })
+  @ApiResponse({ status: 200, description: 'Logs de dealers devueltos con éxito' })
+  async getDealerLogs(@Param('parentLogId') parentLogId: string) {
+    return await this.scriptRunnerService.getDealerExecutionLogs(parentLogId);
+  }
+
   @Post(':scriptName/execute')
   @ApiOperation({ summary: 'Ejecutar un script registrado de forma síncrona' })
   @ApiResponse({ status: 200, description: 'Script ejecutado con éxito' })

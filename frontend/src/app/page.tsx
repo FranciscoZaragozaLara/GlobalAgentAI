@@ -45,6 +45,7 @@ interface ExecutionLog {
   researchUrl: string | null;
   pdfUrl: string | null;
   imagesUrl: string | null;
+  dealerCount?: number;
 }
 
 export default function Dashboard() {
@@ -53,6 +54,31 @@ export default function Dashboard() {
   const [executing, setExecuting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Dealer Modal States
+  const [selectedParentLogId, setSelectedParentLogId] = useState<string | null>(null);
+  const [selectedParentLogAgency, setSelectedParentLogAgency] = useState<string>("");
+  const [dealerLogs, setDealerLogs] = useState<any[]>([]);
+  const [loadingDealers, setLoadingDealers] = useState(false);
+  const [showDealersModal, setShowDealersModal] = useState(false);
+
+  const fetchDealerLogs = async (parentLogId: string, agency: string) => {
+    setSelectedParentLogId(parentLogId);
+    setSelectedParentLogAgency(agency);
+    setLoadingDealers(true);
+    setShowDealersModal(true);
+    try {
+      const res = await fetch(`http://localhost:3000/api/v1/scripts/logs/${parentLogId}/dealers`);
+      if (!res.ok) throw new Error("Error al obtener reportes de dealers");
+      const data = await res.json();
+      setDealerLogs(data);
+    } catch (err: any) {
+      console.error(err);
+      setDealerLogs([]);
+    } finally {
+      setLoadingDealers(false);
+    }
+  };
 
   // Form states for executing new strategy
   const [email, setEmail] = useState("frzaragoza.arcade@gmail.com");
@@ -266,20 +292,20 @@ export default function Dashboard() {
           }
 
           return (
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center flex-wrap">
               {log.researchUrl ? (
                 <a
                   href={log.researchUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-all border border-zinc-750"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-200 transition-all border border-zinc-800"
                   title="Descargar Investigación Completa (.MD)"
                 >
                   <FileText className="w-3.5 h-3.5 text-sky-400" />
                   Investigación
                 </a>
               ) : (
-                <span className="text-xs text-zinc-600">—</span>
+                <span className="text-xs text-zinc-650">—</span>
               )}
 
               {log.pdfUrl && (
@@ -287,7 +313,7 @@ export default function Dashboard() {
                   href={log.pdfUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-all border border-zinc-750"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-200 transition-all border border-zinc-800"
                   title="Descargar Reporte Ejecutivo PDF"
                 >
                   <FileDown className="w-3.5 h-3.5 text-emerald-400" />
@@ -300,13 +326,24 @@ export default function Dashboard() {
                   href={log.imagesUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-all border border-zinc-750"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-200 transition-all border border-zinc-800"
                   title="Descargar Catálogo de Imágenes de Campañas"
                 >
                   <Image className="w-3.5 h-3.5 text-amber-400" />
                   Catálogo
                 </a>
               )}
+
+              {log.dealerCount && log.dealerCount > 0 ? (
+                <button
+                  onClick={() => fetchDealerLogs(log.id, log.agencyName)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs bg-indigo-950/40 hover:bg-indigo-900/60 text-indigo-300 transition-all border border-indigo-900/50 cursor-pointer"
+                  title="Ver Reportes por Distribuidor/Agencia"
+                >
+                  <Briefcase className="w-3.5 h-3.5 text-indigo-400" />
+                  Dealers ({log.dealerCount})
+                </button>
+              ) : null}
             </div>
           );
         },
@@ -725,6 +762,129 @@ export default function Dashboard() {
         </div>
 
       </main>
+
+      {/* DEALERS STRATEGY REPORTS MODAL */}
+      {showDealersModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-zinc-950 border border-zinc-805 rounded-lg max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col my-8 animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-900 bg-zinc-900/40">
+              <div className="flex items-center gap-2">
+                <Briefcase className="w-5 h-5 text-indigo-400" />
+                <div>
+                  <h3 className="text-lg font-bold text-zinc-100">
+                    Reportes Estratégicos por Dealer / Distribuidor
+                  </h3>
+                  <p className="text-xs text-zinc-400">
+                    Campaña: {selectedParentLogAgency}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowDealersModal(false)}
+                className="p-1.5 rounded-full hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+                title="Cerrar modal"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-x-auto min-h-[300px]">
+              {loadingDealers ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <RotateCw className="w-8 h-8 text-indigo-500 animate-spin" />
+                  <p className="text-xs text-zinc-400 font-medium">Cargando reportes por agencia...</p>
+                </div>
+              ) : dealerLogs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <XCircle className="w-10 h-10 text-zinc-700 mb-2" />
+                  <p className="text-sm text-zinc-400 font-semibold">No se encontraron reportes atómicos</p>
+                  <p className="text-xs text-zinc-650">No se registraron ejecuciones para los distribuidores en esta corrida.</p>
+                </div>
+              ) : (
+                <table className="w-full border-collapse text-left">
+                  <thead>
+                    <tr className="border-b border-zinc-800 text-zinc-400 text-xs font-semibold uppercase tracking-wider bg-zinc-900/20">
+                      <th className="py-3 px-4">Estatus</th>
+                      <th className="py-3 px-4">Distribuidor (ID)</th>
+                      <th className="py-3 px-4">Razón Social</th>
+                      <th className="py-3 px-4">Ubicación</th>
+                      <th className="py-3 px-4">Tiempo</th>
+                      <th className="py-3 px-4 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dealerLogs.map((dLog) => (
+                      <tr
+                        key={dLog.id}
+                        className="border-b border-zinc-900 hover:bg-zinc-900/20 transition-colors text-sm"
+                      >
+                        <td className="py-3 px-4">
+                          {dLog.status === "SUCCESS" ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                              <CheckCircle className="w-3 h-3" />
+                              Éxito
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                              <XCircle className="w-3 h-3" />
+                              Fallido
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-zinc-200">{dLog.dealerName}</div>
+                          <div className="text-xs text-zinc-500">ID: {dLog.dealerId}</div>
+                        </td>
+                        <td className="py-3 px-4 text-zinc-300 text-xs max-w-[150px] truncate" title={dLog.razonSocial}>
+                          {dLog.razonSocial}
+                        </td>
+                        <td className="py-3 px-4 text-zinc-300 text-xs">
+                          {dLog.ciudad && dLog.estado ? `${dLog.ciudad}, ${dLog.estado}` : dLog.estado || dLog.ciudad || "No especificada"}
+                        </td>
+                        <td className="py-3 px-4 text-zinc-400 font-mono text-xs">
+                          {dLog.executionTime}s
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          {dLog.status === "SUCCESS" && dLog.pdfUrl ? (
+                            <a
+                              href={dLog.pdfUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-200 transition-all border border-zinc-800"
+                              title="Descargar PDF de Agencia"
+                            >
+                              <FileDown className="w-3.5 h-3.5 text-indigo-400" />
+                              Descargar PDF
+                            </a>
+                          ) : dLog.status === "FAILED" ? (
+                            <span className="text-xs text-rose-400 italic" title={dLog.errorMessage}>
+                              {dLog.errorMessage || "Error en generación"}
+                            </span>
+                          ) : (
+                            <span className="text-zinc-600">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-zinc-900 bg-zinc-900/20 flex justify-end">
+              <button
+                onClick={() => setShowDealersModal(false)}
+                className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 rounded border border-zinc-850 hover:border-zinc-700 text-xs transition-all cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

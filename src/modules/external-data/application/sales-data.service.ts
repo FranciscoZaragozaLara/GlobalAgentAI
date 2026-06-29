@@ -68,4 +68,46 @@ export class SalesDataService {
       throw error;
     }
   }
+
+  /**
+   * Retrieves all distributors / dealers catalog using authenticated Global DMS API
+   */
+  async getDistribuidores(): Promise<any[]> {
+    const baseUrl = this.configService.get<string>('GLOBAL_DMS_BASE_URL', 'https://www.globaldms.mx/globalapiOracle');
+    const url = `${baseUrl}/Kpis/getCatalogoDistribuidores`;
+
+    try {
+      const token = await this.authService.getValidToken();
+      const payload = {
+        page: 0,
+        pageSize: 0,
+      };
+
+      this.logger.log('Calling Catalog of Distributors API...');
+
+      const response = await axios.post(url, payload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/plain',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.data && response.data.response === 'OK') {
+        const results = response.data.results || [];
+        this.logger.log(`Retrieved ${results.length} distributors records successfully.`);
+        return results;
+      }
+
+      this.logger.warn(`Distributors API returned response not OK: ${response.data?.message}`);
+      return [];
+    } catch (error) {
+      if (error.response) {
+        this.logger.error(`Distributors API Request failed (${error.response.status}): ${JSON.stringify(error.response.data)}`);
+      } else {
+        this.logger.error(`Error connecting to Distributors API: ${error.message}`);
+      }
+      throw error;
+    }
+  }
 }

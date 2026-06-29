@@ -24,4 +24,24 @@ model ExecutionLog {
   researchS3Key String?
   pdfS3Key      String?
   imagesS3Key   String?
+
+  // Relación con los dealers
+  dealerLogs    DealerExecutionLog[]
 }
+
+model DealerExecutionLog {
+  id             String       @id @default(uuid())
+  parentLogId    String
+  parentLog      ExecutionLog @relation(fields: [parentLogId], references: [id], onDelete: Cascade)
+  dealerId       String
+  dealerName     String
+  razonSocial    String
+  ciudad         String?
+  estado         String?
+  pdfS3Key       String?
+  executionTime  Float
+  status         String       // SUCCESS, FAILED
+  errorMessage   String?
+  createdAt      DateTime     @default(now())
+}
+

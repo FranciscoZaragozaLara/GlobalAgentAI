@@ -6,6 +6,7 @@ import { EmailService } from '../../notifications/application/email.service';
 import { GeminiService } from '../../gemini/application/gemini.service';
 import { AuthService } from '../../auth/application/auth.service';
 import { SalesAnalyticsService } from '../../external-data/application/sales-analytics.service';
+import { SalesDataService } from '../../external-data/application/sales-data.service';
 import { ResearchStorageService } from '../../gemini/application/research-storage.service';
 import { PrismaService } from '../../database/prisma.service';
 import { performance } from 'perf_hooks';
@@ -27,6 +28,7 @@ export class DemoSalesPlanScript extends BaseScript {
     private readonly salesAnalyticsService: SalesAnalyticsService,
     private readonly researchStorageService: ResearchStorageService,
     private readonly prisma: PrismaService,
+    private readonly salesDataService: SalesDataService,
   ) {
     super();
   }
@@ -498,7 +500,8 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
       if (emailSent) {
         const endTime = performance.now();
         const executionTime = parseFloat(((endTime - startTime) / 1000).toFixed(2));
-        await this.prisma.executionLog.create({
+        
+        const masterLog = await this.prisma.executionLog.create({
           data: {
             agencyName,
             monthName,
@@ -510,7 +513,133 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
             pdfS3Key: this.researchStorageService.getPdfS3Key(monthName, queryYear, agencyName, researchMode),
             imagesS3Key: imagesPdfBuffer ? this.researchStorageService.getImagesPdfS3Key(monthName, queryYear, agencyName, researchMode) : null,
           },
-        }).catch(dbErr => this.logger.error(`Failed to save execution log to DB: ${dbErr.message}`));
+        });
+
+        // --- SUB-PROCESO POR DEALER/AGENCIA ---
+        this.logger.log('Starting individual dealer strategic plan generation...');
+        try {
+          const distributors = await this.salesDataService.getDistribuidores();
+          // Filter first 5 dealers for test phase
+          const testDealers = distributors.slice(0, 5);
+          
+          this.logger.log(`Processing ${testDealers.length} test dealers for localized strategy reports...`);
+          
+          for (const dealer of testDealers) {
+            const dealerStartTime = performance.now();
+            
+            // Extract attributes safely with fallbacks
+            const distId = (dealer.idDistribuidor || dealer.distribuidorID || dealer.id || '').toString();
+            const distName = dealer.nombreComercial || dealer.nombre || dealer.distribuidor || `Distribuidor ${distId}`;
+            const razonSocial = dealer.razonSocial || dealer.razon_social || distName;
+            const ciudad = dealer.ciudad || dealer.municipio || '';
+            const estado = dealer.estado || '';
+
+            this.logger.log(`Generating strategy report for dealer ${distName} (ID: ${distId})...`);
+
+            try {
+              // 1. Fetch sales data filtered by this dealer
+              const dealerMetrics = await this.salesAnalyticsService.generateStrategyMetrics(queryYear, queryMonth, distId);
+              
+              // 2. Build regionalized strategy prompt
+              const dealerPrompt = `
+Eres un Consultor de Estrategia Comercial de Marca Automotriz y estás adaptando la planeación comercial nacional para una agencia en particular.
+
+Este es el Reporte Ejecutivo de Marca ya unificado:
+---
+${modifiedMarkdown}
+---
+
+Instrucciones:
+Personaliza y regionaliza la estrategia comercial para el siguiente Distribuidor (Dealer):
+- Nombre Comercial: ${distName}
+- Razón Social: ${razonSocial}
+- ID Distribuidor: ${distId}
+- Ubicación: ${ciudad}, ${estado}
+
+Utiliza las siguientes métricas de ventas históricas particulares de este Dealer:
+- Ventas Totales Recientes del Trimestre (2026): ${dealerMetrics.totals.sales3Months2026} unidades.
+- Ventas del mismo periodo del año anterior (2025): ${dealerMetrics.totals.sales3Months2025} unidades.
+- Crecimiento YoY del Dealer: ${dealerMetrics.totals.growthRate}%
+- Meta Sugerida para el Dealer en ${monthName}: ${dealerMetrics.totals.suggestedGoal2026} unidades.
+
+Genera una respuesta en español estructurada en máximo 4 párrafos que contenga:
+1. Una comparación del desempeño de este dealer con la tendencia nacional de la marca.
+2. Tácticas locales/regionales específicas aprovechando su ubicación en la ciudad de ${ciudad}, Estado de ${estado} (o zona geográfica circundante si la ciudad/estado no están detalladas).
+3. Justificación estratégica y de inventario para alcanzar la meta asignada de ${dealerMetrics.totals.suggestedGoal2026} unidades para ${monthName} 2026.
+4. Lineamientos de cómo deben usar el catálogo de campañas y creativos publicitarios nacionales ya generados (reutilizándolos para sus canales locales). No propongas nuevas imágenes, posts o videos.
+`;
+
+              // 3. Invoke Gemini to customize strategy
+              const dealerStrategyText = await this.geminiService.generateText(dealerPrompt, 'gemini-3.5-flash');
+
+              // 4. Generate customized executive PDF
+              const dealerPdfBuffer = await this.pdfService.generateExecutivePdf(
+                monthName,
+                distName,
+                dealerMetrics,
+                dealerStrategyText,
+                bannerInfo
+              );
+
+              // 5. Upload PDF report to S3
+              await this.researchStorageService.savePdfReport(monthName, queryYear, distName, dealerPdfBuffer, researchMode);
+              const dealerPdfS3Key = this.researchStorageService.getPdfS3Key(monthName, queryYear, distName, researchMode);
+
+              // 6. Save DealerExecutionLog in DB
+              const dealerEndTime = performance.now();
+              const dealerTime = parseFloat(((dealerEndTime - dealerStartTime) / 1000).toFixed(2));
+              
+              await this.prisma.dealerExecutionLog.create({
+                data: {
+                  parentLogId: masterLog.id,
+                  dealerId: distId,
+                  dealerName: distName,
+                  razonSocial,
+                  ciudad,
+                  estado,
+                  pdfS3Key: dealerPdfS3Key,
+                  executionTime: dealerTime,
+                  status: 'SUCCESS',
+                }
+              });
+
+              // 7. Email report to dealer contact (sending to target destination for test/poc)
+              await this.emailService.sendMailWithAttachment(
+                emailDestination,
+                `Plan Estratégico Local - ${distName} - ${monthName} 2026`,
+                `Estimado Gerente Comercial de ${distName},
+
+Adjuntamos el Plan Estratégico Local de Ventas y Marketing correspondiente al periodo de ${monthName} de 2026, personalizado para tu distribuidor en ${ciudad}, ${estado}.
+
+Este reporte atómico detalla tus métricas de ventas locales recientes, la comparativa anual, y las tácticas comerciales recomendadas en base a la línea central de la marca para cumplir tu objetivo mensual de ${dealerMetrics.totals.suggestedGoal2026} unidades.`,
+                dealerPdfBuffer,
+                `Plan_Estrategico_Dealer_${distId}_${monthName.replace(/\s+/g, '_')}_2026.pdf`
+              );
+
+              this.logger.log(`Dealer ${distName} strategy report successfully generated, uploaded, logged and emailed.`);
+            } catch (dealerErr) {
+              this.logger.error(`Failed to process dealer ${distName} (ID: ${distId}): ${dealerErr.message}`, dealerErr.stack);
+              const dealerEndTime = performance.now();
+              const dealerTime = parseFloat(((dealerEndTime - dealerStartTime) / 1000).toFixed(2));
+              
+              await this.prisma.dealerExecutionLog.create({
+                data: {
+                  parentLogId: masterLog.id,
+                  dealerId: distId,
+                  dealerName: distName,
+                  razonSocial,
+                  ciudad,
+                  estado,
+                  executionTime: dealerTime,
+                  status: 'FAILED',
+                  errorMessage: dealerErr.message,
+                }
+              }).catch(dbErr => this.logger.error(`Failed to write failed dealer log: ${dbErr.message}`));
+            }
+          }
+        } catch (catErr) {
+          this.logger.error(`Failed to retrieve dealers catalog or process loop: ${catErr.message}`);
+        }
 
         return {
           success: true,

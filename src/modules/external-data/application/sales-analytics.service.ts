@@ -21,7 +21,7 @@ export class SalesAnalyticsService {
   /**
    * Orchestrates the retrieval of past metrics and calculates performance/targets
    */
-  async generateStrategyMetrics(year: number, month: number): Promise<{
+  async generateStrategyMetrics(year: number, month: number, idDistribuidor?: string): Promise<{
     raw2026: SalesRecord[][];
     raw2025: SalesRecord[][];
     rawJune2025: SalesRecord[];
@@ -34,7 +34,7 @@ export class SalesAnalyticsService {
       growthRate: number;
     };
   }> {
-    this.logger.log(`Generating sales strategy metrics comparison for Month ${month}/${year}...`);
+    this.logger.log(`Generating sales strategy metrics comparison for Month ${month}/${year}${idDistribuidor ? ' (Dealer: ' + idDistribuidor + ')' : ''}...`);
 
     // Calculate months in range (3 months prior to target month)
     const prevMonths: { year: number; month: number }[] = [];
@@ -48,18 +48,23 @@ export class SalesAnalyticsService {
       prevMonths.push({ year: y, month: m });
     }
 
+    const filterOptions = idDistribuidor ? {
+      buscaDistribuidor: 1,
+      idDistribuidor: [idDistribuidor]
+    } : {};
+
     // 1. Fetch 3 months of 2026
     const sales3Months2026 = await Promise.all(
-      prevMonths.map(p => this.salesDataService.getVentasResumenXModelo({ anio: p.year, mes: p.month })),
+      prevMonths.map(p => this.salesDataService.getVentasResumenXModelo({ anio: p.year, mes: p.month, ...filterOptions })),
     );
 
     // 2. Fetch 3 months of 2025
     const sales3Months2025 = await Promise.all(
-      prevMonths.map(p => this.salesDataService.getVentasResumenXModelo({ anio: p.year - 1, mes: p.month })),
+      prevMonths.map(p => this.salesDataService.getVentasResumenXModelo({ anio: p.year - 1, mes: p.month, ...filterOptions })),
     );
 
     // 3. Fetch June 2025 (target month of previous year)
-    const june2025Sales = await this.salesDataService.getVentasResumenXModelo({ anio: year - 1, mes: month });
+    const june2025Sales = await this.salesDataService.getVentasResumenXModelo({ anio: year - 1, mes: month, ...filterOptions });
 
     // Helper: Map data arrays to model names dictionary
     const mapByModel = (monthsData: SalesRecord[][]) => {

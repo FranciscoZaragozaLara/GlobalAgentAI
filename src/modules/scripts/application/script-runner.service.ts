@@ -59,11 +59,37 @@ export class ScriptRunnerService {
           imagesUrl = await this.researchStorageService.getSignedUrl(log.imagesS3Key);
         }
 
+        const dealerCount = await this.prisma.dealerExecutionLog.count({
+          where: { parentLogId: log.id },
+        });
+
         return {
           ...log,
           researchUrl,
           pdfUrl,
           imagesUrl,
+          dealerCount,
+        };
+      })
+    );
+  }
+
+  async getDealerExecutionLogs(parentLogId: string) {
+    const logs = await this.prisma.dealerExecutionLog.findMany({
+      where: { parentLogId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return await Promise.all(
+      logs.map(async (log) => {
+        let pdfUrl: string | null = null;
+        if (log.pdfS3Key) {
+          pdfUrl = await this.researchStorageService.getSignedUrl(log.pdfS3Key);
+        }
+
+        return {
+          ...log,
+          pdfUrl,
         };
       })
     );
