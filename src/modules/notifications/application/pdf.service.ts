@@ -18,6 +18,7 @@ export class PdfService {
     deepResearchMarkdown: string,
     bannerInfo?: { path: string; prompt: string; model: string; file: string },
   ): Promise<Buffer> {
+    const cleanMonth = month.replace(/\d+/g, '').trim();
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
       const chunks: Buffer[] = [];
@@ -75,7 +76,7 @@ export class PdfService {
       doc.fillColor('#2B6CB0')
          .fontSize(16)
          .font('Helvetica')
-         .text(`Estrategia Comercial y Objetivos — ${month} 2026`, { align: 'left' });
+         .text(`Estrategia Comercial y Objetivos — ${cleanMonth} 2026`, { align: 'left' });
       
       doc.moveDown(1.5);
       doc.strokeColor('#CBD5E0')
@@ -109,7 +110,7 @@ export class PdfService {
          .text('1. Indicadores de Ventas e Históricos Comparativos');
       
       const monthsEs = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-      const monthIdx = monthsEs.findIndex(m => m.toLowerCase().includes(month.toLowerCase()));
+      const monthIdx = monthsEs.findIndex(m => m.toLowerCase().includes(cleanMonth.toLowerCase()));
       let prevMonthsNames = '';
       if (monthIdx !== -1) {
         const p1 = monthsEs[(monthIdx - 3 + 12) % 12].substring(0, 3);
@@ -138,8 +139,8 @@ export class PdfService {
          .text('Trimestre 2025', 150, tableStartY + 7, { width: 70, align: 'center' })
          .text('Trimestre 2026', 230, tableStartY + 7, { width: 70, align: 'center' })
          .text('Crec. YoY %', 310, tableStartY + 7, { width: 60, align: 'center' })
-         .text(`${month} 2025`, 380, tableStartY + 7, { width: 70, align: 'center' })
-         .text(`Meta ${month} 2026`, 460, tableStartY + 7, { width: 75, align: 'center' });
+         .text(`${cleanMonth} 2025`, 380, tableStartY + 7, { width: 70, align: 'center' })
+         .text(`Meta ${cleanMonth} 2026`, 460, tableStartY + 7, { width: 75, align: 'center' });
 
       let currentY = tableStartY + 22;
 
@@ -453,7 +454,7 @@ export class PdfService {
              .fontSize(8)
              .font('Helvetica')
              .text('JETOUR & SOUEAST MÉXICO', 50, 28)
-             .text(`Plan de Estrategia Comercial — ${month} 2026`, 300, 28, { align: 'right', width: 245 });
+             .text(`Plan de Estrategia Comercial — ${cleanMonth} 2026`, 300, 28, { align: 'right', width: 245 });
         }
 
         // Footer (On all pages)
@@ -494,6 +495,7 @@ export class PdfService {
     agencyName: string,
     images: Array<{ path: string; prompt: string; model: string; filename: string }>,
   ): Promise<Buffer> {
+    const cleanMonth = month.replace(/\d+/g, '').trim();
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
       const chunks: Buffer[] = [];
@@ -516,7 +518,7 @@ export class PdfService {
       doc.fillColor('#2B6CB0')
          .fontSize(12)
          .font('Helvetica')
-         .text(`Catálogo de Ads Generados por IA — ${month} 2026`, { align: 'left' });
+         .text(`Catálogo de Ads Generados por IA — ${cleanMonth} 2026`, { align: 'left' });
       
       doc.moveDown(1);
       doc.strokeColor('#CBD5E0')
@@ -599,7 +601,7 @@ export class PdfService {
              .fontSize(8)
              .font('Helvetica')
              .text('REPORTES DE IMÁGENES DE ADS', 50, 28)
-             .text(`${month} 2026`, 300, 28, { align: 'right', width: 245 });
+             .text(`${cleanMonth} 2026`, 300, 28, { align: 'right', width: 245 });
         }
 
         // Footer

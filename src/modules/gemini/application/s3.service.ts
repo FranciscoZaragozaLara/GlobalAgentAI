@@ -34,11 +34,23 @@ export class S3Service {
   async uploadFile(key: string, body: Buffer | string, contentType: string): Promise<void> {
     try {
       this.logger.log(`Uploading file to S3: ${key}...`);
+      let finalBody: Buffer;
+      let finalContentType = contentType;
+
+      if (typeof body === 'string') {
+        finalBody = Buffer.from(body, 'utf-8');
+        if (contentType.startsWith('text/') && !contentType.toLowerCase().includes('charset')) {
+          finalContentType = `${contentType}; charset=utf-8`;
+        }
+      } else {
+        finalBody = body;
+      }
+
       const command = new PutObjectCommand({
         Bucket: this.bucketName,
         Key: key,
-        Body: body,
-        ContentType: contentType,
+        Body: finalBody,
+        ContentType: finalContentType,
       });
       await this.s3Client.send(command);
       this.logger.log(`Successfully uploaded file to S3: ${key}`);

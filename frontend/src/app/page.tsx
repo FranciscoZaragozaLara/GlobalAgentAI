@@ -81,13 +81,13 @@ export default function Dashboard() {
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:3002/api/v1/scripts/logs");
+      const res = await fetch("http://localhost:3000/api/v1/scripts/logs");
       if (!res.ok) throw new Error("Error al obtener los logs de base de datos");
       const data = await res.json();
       setLogs(data);
     } catch (err: any) {
       console.error(err);
-      setErrorMsg("No se pudieron cargar los logs del servidor. Verifica que el backend esté activo en el puerto 3002.");
+      setErrorMsg("No se pudieron cargar los logs del servidor. Verifica que el backend esté activo en el puerto 3000.");
     } finally {
       setLoading(false);
     }
@@ -105,7 +105,7 @@ export default function Dashboard() {
     setSuccessMsg(null);
 
     try {
-      const res = await fetch("http://localhost:3002/api/v1/scripts/demo-sales-plan/execute", {
+      const res = await fetch("http://localhost:3000/api/v1/scripts/demo-sales-plan/execute", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

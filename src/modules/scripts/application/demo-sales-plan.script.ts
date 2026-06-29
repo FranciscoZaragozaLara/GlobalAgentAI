@@ -49,12 +49,14 @@ export class DemoSalesPlanScript extends BaseScript {
       // --- PASO DE CÁLCULO DE TENDENCIAS Y MÉTRICAS HISTÓRICAS ---
       this.logger.log('Fetching and calculating historical sales trends YoY...');
       // Month parameter maps from parameter or defaults to 6 (June)
+      const monthsEs = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
       let queryMonth = 6;
       if (monthName) {
-        const lowerMonth = monthName.toLowerCase();
-        if (lowerMonth.includes('julio')) queryMonth = 7;
-        else if (lowerMonth.includes('abril')) queryMonth = 4;
-        else if (lowerMonth.includes('junio')) queryMonth = 6;
+        const lowerMonth = monthName.toLowerCase().trim();
+        const foundIndex = monthsEs.findIndex(m => lowerMonth.includes(m));
+        if (foundIndex !== -1) {
+          queryMonth = foundIndex + 1;
+        }
       }
       const queryYear = 2026;
       const metrics = await this.salesAnalyticsService.generateStrategyMetrics(queryYear, queryMonth);

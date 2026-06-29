@@ -119,12 +119,34 @@ export class SalesAnalyticsService {
       }
 
       // Target Goal calculation logic:
-      // Base suggested goal is june 2025 adjusted by the growth rate trend, with a floor of at least average 2026 monthly sales
-      const monthlyAvg2026 = Math.round(sales2026 / 3);
-      let suggestedGoal = Math.round(june25Count * (1 + growthRate / 100));
+      // 1. Calculate current monthly average run rate (2026)
+      const monthlyAvg2026 = sales2026 / 3;
 
-      if (suggestedGoal <= 0 || suggestedGoal < monthlyAvg2026) {
-        suggestedGoal = Math.max(monthlyAvg2026, 1); // Ensure sensible minimum target goal
+      // 2. Determine target modifier based on YoY growth trend (capped between -40% and +40%)
+      let targetModifier = 1.0;
+      if (sales2025 > 0) {
+        const rawGrowth = (sales2026 - sales2025) / sales2025;
+        // Cap growth modifier between -40% and +40%
+        targetModifier = 1 + Math.max(-0.4, Math.min(0.4, rawGrowth));
+      } else if (sales2026 > 0) {
+        // If there were no sales in 2025, assume positive trend but capped at +40%
+        targetModifier = 1.4;
+      }
+
+      // 3. Project suggested goal: 70% weighted on adjusted monthly average, 30% on previous year's month sales (estacionalidad)
+      const projectedGoal = 0.7 * (monthlyAvg2026 * targetModifier) + 0.3 * june25Count;
+      
+      // 4. Ensure suggested goal is realistic (capped at max 140% of recent monthly average, with a floor of recent average or at least 1)
+      let suggestedGoal = Math.round(projectedGoal);
+      const capLimit = Math.round(monthlyAvg2026 * 1.4);
+      
+      if (suggestedGoal > capLimit) {
+        suggestedGoal = capLimit;
+      }
+      
+      const floorLimit = Math.max(Math.round(monthlyAvg2026), 1);
+      if (suggestedGoal < floorLimit) {
+        suggestedGoal = floorLimit;
       }
 
       grandTotal2026 += sales2026;
