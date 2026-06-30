@@ -48,4 +48,12 @@ export class ExecuteScriptDto {
   @IsString()
   @IsOptional()
   reportMode?: string;
+
+  @ApiProperty({
+    description: 'Bandera para determinar si se deben generar las imágenes de campaña en el reporte',
+    example: true,
+    required: false,
+  })
+  @IsOptional()
+  generateImages?: boolean;
 }

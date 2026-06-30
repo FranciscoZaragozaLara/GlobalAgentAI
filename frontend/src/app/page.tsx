@@ -158,6 +158,7 @@ export default function Dashboard() {
 
   const [researchMode, setResearchMode] = useState("Basica");
   const [reportMode, setReportMode] = useState("Triple");
+  const [generateImages, setGenerateImages] = useState(true);
 
   // Filter states
   const [globalFilter, setGlobalFilter] = useState("");
@@ -203,6 +204,7 @@ export default function Dashboard() {
           monthName,
           researchMode,
           reportMode,
+          generateImages,
         }),
       });
 
@@ -679,6 +681,25 @@ export default function Dashboard() {
                     <p className="text-[10px] text-zinc-550 leading-relaxed font-light">
                       El modo afecta la profundidad del Deep Research. Los tiempos estimados corresponden a ejecuciones frías; con caché activa es inmediato (1s).
                     </p>
+                  </div>
+
+                  {/* Generate Images Toggle */}
+                  <div className="flex items-center justify-between p-2.5 rounded bg-zinc-950/60 border border-zinc-900/80">
+                    <div className="space-y-0.5">
+                      <label className="text-xs font-bold text-zinc-300 uppercase tracking-wider block cursor-pointer select-none" htmlFor="generateImages">
+                        Generar Imágenes AI
+                      </label>
+                      <span className="text-[9px] text-zinc-550 leading-relaxed font-light block">
+                        Usa Imagen 4.0 para crear banners y anuncios
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      id="generateImages"
+                      checked={generateImages}
+                      onChange={(e) => setGenerateImages(e.target.checked)}
+                      className="w-4 h-4 rounded border-zinc-800 text-indigo-650 focus:ring-indigo-500/20 bg-zinc-950 cursor-pointer"
+                    />
                   </div>
 
                   {/* Submit Button */}

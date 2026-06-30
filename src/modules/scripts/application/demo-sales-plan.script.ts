@@ -42,6 +42,7 @@ export class DemoSalesPlanScript extends BaseScript {
     const monthName = params.monthName || 'Mes Actual';
     const researchMode = params.researchMode || 'Basica';
     const reportMode = params.reportMode || 'Triple';
+    const generateImages = params.generateImages !== undefined ? Boolean(params.generateImages) : true;
     
     this.logger.log(`Starting execute of DemoSalesPlanScript in mode [Research: ${researchMode} | Report: ${reportMode}] target email: ${emailDestination}`);
     try {
@@ -150,7 +151,7 @@ Este documento detalla las tendencias del consumidor, temporalidades y tácticas
       // --- FLOW B: TRIPLE REPORT FLOW (MAIN PDF, DEEP RESEARCH, CAMPAIGN IMAGES CATALOG) ---
 
       // --- COMPROBAR NIVEL 4: FINAL EXECUTIVE PDF CACHE ---
-      if (await this.researchStorageService.hasPdfReport(monthName, queryYear, agencyName, researchMode)) {
+      if (generateImages && await this.researchStorageService.hasPdfReport(monthName, queryYear, agencyName, researchMode)) {
         this.logger.log(`Final PDF Report for ${agencyName} (${monthName} ${queryYear}) found in cache (Nivel 4 HIT). Loading from disk...`);
         const pdfBuffer = await this.researchStorageService.getPdfReport(monthName, queryYear, agencyName, researchMode);
 
@@ -308,84 +309,91 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
       let anyImageGenerationFailed = false;
       const safetySuffix = ". Styled for Mexican middle-high class families in Mexican settings, typical Mexican people, no Asian elements, no Chinese text, no oriental characters, no Asian people, realistic commercial photography.";
 
-      // A) Generar Banner de Portada Dinámica
-      this.logger.log('Generating dynamic cover banner image for report...');
-      const bannerPromptText = await this.promptTemplateService.resolvePrompt('image-banner', {
-        MONTH_NAME: monthName,
-      });
-      
-      const bannerHash = crypto.createHash('md5').update(bannerPromptText.trim().toLowerCase()).digest('hex');
-      const bannerPath = path.join(cacheImagesDir, `banner_cache_${bannerHash}.jpg`);
-      const bannerModelName = 'imagen-4.0-generate-001';
-      const bannerFilename = `banner_cache_${bannerHash}.jpg`;
-      
-      const bannerInfo = {
-        path: bannerPath,
-        prompt: bannerPromptText,
-        model: bannerModelName,
-        file: bannerFilename
-      };
-
-      if (await this.researchStorageService.hasCampaignImage(`banner_${bannerHash}`)) {
-        this.logger.log(`Dynamic cover banner found in S3 (Nivel 3 HIT) (Hash: ${bannerHash}). Downloading...`);
-        const bannerBuffer = await this.researchStorageService.getCampaignImage(`banner_${bannerHash}`);
-        fs.writeFileSync(bannerPath, bannerBuffer);
-      } else {
-        this.logger.log(`Generating dynamic cover banner (Nivel 3 MISS)...`);
-        try {
-          const bannerBuffer = await this.geminiService.generateImage(bannerPromptText + safetySuffix, bannerModelName);
-          fs.writeFileSync(bannerPath, bannerBuffer);
-          await this.researchStorageService.saveCampaignImage(`banner_${bannerHash}`, bannerBuffer);
-          this.logger.log(`Dynamic cover banner generated and saved to cache/S3.`);
-        } catch (bannerErr) {
-          this.logger.error(`Error generating dynamic cover banner: ${bannerErr.message}`);
-          anyImageGenerationFailed = true;
-        }
-      }
-
-      // B) Generar imágenes de anuncios de la campaña
-      this.logger.log('Extracting ads image prompts and resolving via local MD5 cache...');
-      // Match [PROMPT: ...] tags
-      const promptRegex = /\[PROMPT:\s*(.*?)\]/gi;
-      const matches = [...unifiedStrategyMarkdown.matchAll(promptRegex)];
-      this.logger.log(`Found ${matches.length} campaign ads images to process.`);
-
-      // Process images sequentially
+      let bannerInfo: any = undefined;
       let modifiedMarkdown = unifiedStrategyMarkdown;
-      for (let i = 0; i < matches.length; i++) {
-        const [originalTag, promptText] = matches[i];
+
+      if (generateImages) {
+        // A) Generar Banner de Portada Dinámica
+        this.logger.log('Generating dynamic cover banner image for report...');
+        const bannerPromptText = await this.promptTemplateService.resolvePrompt('image-banner', {
+          MONTH_NAME: monthName,
+        });
         
-        // Generate MD5 hash of the prompt text to uniquely identify the image contents
-        const promptHash = crypto.createHash('md5').update(promptText.trim().toLowerCase()).digest('hex');
-        const cachedImagePath = path.join(cacheImagesDir, `ad_cache_${promptHash}.jpg`);
+        const bannerHash = crypto.createHash('md5').update(bannerPromptText.trim().toLowerCase()).digest('hex');
+        const bannerPath = path.join(cacheImagesDir, `banner_cache_${bannerHash}.jpg`);
+        const bannerModelName = 'imagen-4.0-generate-001';
+        const bannerFilename = `banner_cache_${bannerHash}.jpg`;
+        
+        bannerInfo = {
+          path: bannerPath,
+          prompt: bannerPromptText,
+          model: bannerModelName,
+          file: bannerFilename
+        };
 
-        const filename = `ad_cache_${promptHash}.jpg`;
-        const modelName = 'imagen-4.0-generate-001';
-        const imageTag = `[IMAGE_DATA|path:${cachedImagePath}|prompt:${promptText}|model:${modelName}|file:${filename}]`;
-
-        if (await this.researchStorageService.hasCampaignImage(promptHash)) {
-          this.logger.log(`Ad image ${i + 1}/${matches.length} found in S3 (Nivel 3 HIT) (Hash: ${promptHash}). Downloading...`);
-          const imageBuffer = await this.researchStorageService.getCampaignImage(promptHash);
-          fs.writeFileSync(cachedImagePath, imageBuffer);
-          modifiedMarkdown = modifiedMarkdown.replace(originalTag, imageTag);
+        if (await this.researchStorageService.hasCampaignImage(`banner_${bannerHash}`)) {
+          this.logger.log(`Dynamic cover banner found in S3 (Nivel 3 HIT) (Hash: ${bannerHash}). Downloading...`);
+          const bannerBuffer = await this.researchStorageService.getCampaignImage(`banner_${bannerHash}`);
+          fs.writeFileSync(bannerPath, bannerBuffer);
         } else {
-          this.logger.log(`Generating ad image ${i + 1}/${matches.length} (Nivel 3 MISS) with prompt: "${promptText.substring(0, 60)}..."`);
-          
+          this.logger.log(`Generating dynamic cover banner (Nivel 3 MISS)...`);
           try {
-            // Call Google Imagen 4.0 (as verified in ListModels)
-            const finalPrompt = promptText + safetySuffix;
-            const imageBuffer = await this.geminiService.generateImage(finalPrompt, modelName);
-            fs.writeFileSync(cachedImagePath, imageBuffer);
-            await this.researchStorageService.saveCampaignImage(promptHash, imageBuffer);
-            this.logger.log(`Ad image generated and saved to cache/S3.`);
-            
-            modifiedMarkdown = modifiedMarkdown.replace(originalTag, imageTag);
-          } catch (imgErr) {
-            this.logger.error(`Error generating image for campaign ${i + 1}: ${imgErr.message}`);
-            modifiedMarkdown = modifiedMarkdown.replace(originalTag, `[Error de Generación: ${imgErr.message}]`);
+            const bannerBuffer = await this.geminiService.generateImage(bannerPromptText + safetySuffix, bannerModelName);
+            fs.writeFileSync(bannerPath, bannerBuffer);
+            await this.researchStorageService.saveCampaignImage(`banner_${bannerHash}`, bannerBuffer);
+            this.logger.log(`Dynamic cover banner generated and saved to cache/S3.`);
+          } catch (bannerErr) {
+            this.logger.error(`Error generating dynamic cover banner: ${bannerErr.message}`);
             anyImageGenerationFailed = true;
           }
         }
+
+        // B) Generar imágenes de anuncios de la campaña
+        this.logger.log('Extracting ads image prompts and resolving via local MD5 cache...');
+        // Match [PROMPT: ...] tags
+        const promptRegex = /\[PROMPT:\s*(.*?)\]/gi;
+        const matches = [...unifiedStrategyMarkdown.matchAll(promptRegex)];
+        this.logger.log(`Found ${matches.length} campaign ads images to process.`);
+
+        // Process images sequentially
+        for (let i = 0; i < matches.length; i++) {
+          const [originalTag, promptText] = matches[i];
+          
+          // Generate MD5 hash of the prompt text to uniquely identify the image contents
+          const promptHash = crypto.createHash('md5').update(promptText.trim().toLowerCase()).digest('hex');
+          const cachedImagePath = path.join(cacheImagesDir, `ad_cache_${promptHash}.jpg`);
+
+          const filename = `ad_cache_${promptHash}.jpg`;
+          const modelName = 'imagen-4.0-generate-001';
+          const imageTag = `[IMAGE_DATA|path:${cachedImagePath}|prompt:${promptText}|model:${modelName}|file:${filename}]`;
+
+          if (await this.researchStorageService.hasCampaignImage(promptHash)) {
+            this.logger.log(`Ad image ${i + 1}/${matches.length} found in S3 (Nivel 3 HIT) (Hash: ${promptHash}). Downloading...`);
+            const imageBuffer = await this.researchStorageService.getCampaignImage(promptHash);
+            fs.writeFileSync(cachedImagePath, imageBuffer);
+            modifiedMarkdown = modifiedMarkdown.replace(originalTag, imageTag);
+          } else {
+            this.logger.log(`Generating ad image ${i + 1}/${matches.length} (Nivel 3 MISS) with prompt: "${promptText.substring(0, 60)}..."`);
+            
+            try {
+              // Call Google Imagen 4.0 (as verified in ListModels)
+              const finalPrompt = promptText + safetySuffix;
+              const imageBuffer = await this.geminiService.generateImage(finalPrompt, modelName);
+              fs.writeFileSync(cachedImagePath, imageBuffer);
+              await this.researchStorageService.saveCampaignImage(promptHash, imageBuffer);
+              this.logger.log(`Ad image generated and saved to cache/S3.`);
+              
+              modifiedMarkdown = modifiedMarkdown.replace(originalTag, imageTag);
+            } catch (imgErr) {
+              this.logger.error(`Error generating image for campaign ${i + 1}: ${imgErr.message}`);
+              modifiedMarkdown = modifiedMarkdown.replace(originalTag, `[Error de Generación: ${imgErr.message}]`);
+              anyImageGenerationFailed = true;
+            }
+          }
+        }
+      } else {
+        this.logger.log('Image generation is disabled (generateImages = false). Stripping all [PROMPT: ...] tags.');
+        modifiedMarkdown = unifiedStrategyMarkdown.replace(/\[PROMPT:\s*(.*?)\]/gi, '');
       }
 
       // --- GENERAR REPORTE EJECUTIVO PDF UNIFICADO Y ENVIAR UN CORREO ÚNICO ---
@@ -399,9 +407,11 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
       );
       this.logger.log('Executive PDF successfully generated.');
 
-      // Save to Nivel 4 cache ONLY if all images were successfully resolved/generated
-      if (!anyImageGenerationFailed) {
+      // Save to Nivel 4 cache ONLY if all images were successfully resolved/generated and image generation is enabled
+      if (generateImages && !anyImageGenerationFailed) {
         await this.researchStorageService.savePdfReport(monthName, queryYear, agencyName, pdfBuffer, researchMode);
+      } else if (!generateImages) {
+        this.logger.log('Skipping Nivel 4 PDF Cache write because image generation is disabled (generateImages = false).');
       } else {
         this.logger.warn(`Skipping Nivel 4 PDF Cache write because one or more ad images failed to generate. Next execution will retry.`);
       }
@@ -414,15 +424,17 @@ Adjuntamos el Plan Estratégico de Ventas y Marketing correspondiente al periodo
 El objetivo de ventas global recomendado para este periodo se establece en ${metrics.totals.suggestedGoal2026} unidades, lo que representa una tendencia de crecimiento anual acumulada del ${metrics.totals.growthRate}% en el trimestre de comparación. La justificación de metas individuales por modelo y las tácticas específicas de campañas de temporada y rotación de unidades seminuevas (Trade-in) se detallan a profundidad en el documento ejecutivo PDF anexo a este mensaje.`;
 
       // Extract images catalog and generate images PDF
-      const catalog = this.extractImagesCatalog(modifiedMarkdown);
       let imagesPdfBuffer: Buffer | undefined;
-      try {
-        imagesPdfBuffer = await this.pdfService.generateCampaignImagesPdf(monthName, agencyName, catalog);
-        if (imagesPdfBuffer && !anyImageGenerationFailed) {
-          await this.researchStorageService.saveImagesPdfReport(monthName, queryYear, agencyName, imagesPdfBuffer, researchMode);
+      if (generateImages) {
+        const catalog = this.extractImagesCatalog(modifiedMarkdown);
+        try {
+          imagesPdfBuffer = await this.pdfService.generateCampaignImagesPdf(monthName, agencyName, catalog);
+          if (imagesPdfBuffer && !anyImageGenerationFailed) {
+            await this.researchStorageService.saveImagesPdfReport(monthName, queryYear, agencyName, imagesPdfBuffer, researchMode);
+          }
+        } catch (pdfErr) {
+          this.logger.error(`Error generating campaign images PDF: ${pdfErr.message}`);
         }
-      } catch (pdfErr) {
-        this.logger.error(`Error generating campaign images PDF: ${pdfErr.message}`);
       }
 
       const additionalAttachments: Array<{ content: Buffer; name: string }> = [
@@ -523,7 +535,9 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
               );
 
               // 5. Upload PDF report to S3
-              await this.researchStorageService.savePdfReport(monthName, queryYear, distName, dealerPdfBuffer, researchMode);
+              if (generateImages) {
+                await this.researchStorageService.savePdfReport(monthName, queryYear, distName, dealerPdfBuffer, researchMode);
+              }
               const dealerPdfS3Key = this.researchStorageService.getPdfS3Key(monthName, queryYear, distName, researchMode);
 
               // 6. Save DealerExecutionLog in DB
