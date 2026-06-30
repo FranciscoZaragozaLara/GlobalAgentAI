@@ -55,6 +55,66 @@ export default function Dashboard() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // Tab State
+  const [activeTab, setActiveTab] = useState<"dashboard" | "prompts">("dashboard");
+
+  // Prompts States
+  const [prompts, setPrompts] = useState<any[]>([]);
+  const [selectedPrompt, setSelectedPrompt] = useState<any | null>(null);
+  const [promptContent, setPromptContent] = useState("");
+  const [savingPrompt, setSavingPrompt] = useState(false);
+
+  const fetchPrompts = async () => {
+    try {
+      const res = await fetch("http://localhost:3000/api/v1/prompts");
+      if (!res.ok) throw new Error("Error al obtener los prompts");
+      const data = await res.json();
+      setPrompts(data);
+      if (data.length > 0) {
+        // If already selected, update its reference, otherwise pick first
+        setSelectedPrompt((prev: any) => {
+          const matched = data.find((d: any) => d.key === prev?.key);
+          return matched || data[0];
+        });
+      }
+    } catch (err: any) {
+      console.error(err);
+    }
+  };
+
+  const selectPrompt = (prompt: any) => {
+    setSelectedPrompt(prompt);
+    setPromptContent(prompt.content);
+  };
+
+  const handleSavePrompt = async () => {
+    if (!selectedPrompt) return;
+    setSavingPrompt(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      const res = await fetch(`http://localhost:3000/api/v1/prompts/${selectedPrompt.key}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          content: promptContent,
+        }),
+      });
+      if (!res.ok) throw new Error("Error al guardar el prompt");
+      setSuccessMsg(`Plantilla "${selectedPrompt.name}" guardada y actualizada con éxito en la base de datos.`);
+      await fetchPrompts();
+      setTimeout(() => setSuccessMsg(null), 4000);
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg("Error al guardar la plantilla del prompt.");
+      setTimeout(() => setErrorMsg(null), 4000);
+    } finally {
+      setSavingPrompt(false);
+    }
+  };
+
   // Dealer Modal States
   const [selectedParentLogId, setSelectedParentLogId] = useState<string | null>(null);
   const [selectedParentLogAgency, setSelectedParentLogAgency] = useState<string>("");
@@ -121,6 +181,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchLogs();
+    fetchPrompts();
   }, []);
 
   // Handle triggering a new strategy execution
@@ -170,8 +231,9 @@ export default function Dashboard() {
       total > 0
         ? parseFloat((logs.reduce((acc, curr) => acc + curr.executionTime, 0) / total).toFixed(1))
         : 0;
+    const lastRunMonth = logs.length > 0 ? logs[0].monthName : "Ninguno";
 
-    return { total, success, failed, successRate, avgTime };
+    return { total, success, failed, successRate, avgTime, lastRunMonth };
   }, [logs]);
 
   // Filtered data for table
@@ -383,6 +445,32 @@ export default function Dashboard() {
           </div>
         </div>
 
+        <div className="flex items-center gap-2 mr-auto ml-8 border-l border-zinc-900 pl-8">
+          <button
+            onClick={() => setActiveTab("dashboard")}
+            className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              activeTab === "dashboard"
+                ? "bg-zinc-900 text-zinc-100 border border-zinc-800"
+                : "text-zinc-400 hover:text-zinc-200 border border-transparent hover:bg-zinc-900/50"
+            }`}
+          >
+            Dashboard de Estrategia
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab("prompts");
+              fetchPrompts();
+            }}
+            className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              activeTab === "prompts"
+                ? "bg-zinc-900 text-zinc-100 border border-zinc-800"
+                : "text-zinc-400 hover:text-zinc-200 border border-transparent hover:bg-zinc-900/50"
+            }`}
+          >
+            Configuración de Prompts (Admin)
+          </button>
+        </div>
+
         <div className="flex items-center gap-4">
           <button
             onClick={fetchLogs}
@@ -420,346 +508,420 @@ export default function Dashboard() {
             </div>
           </div>
         )}
-
-        {/* STATS OVERVIEW CARDS */}
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-900/80 backdrop-blur flex items-center justify-between">
-            <div>
-              <p className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Ejecuciones Totales</p>
-              <h3 className="text-2xl font-bold mt-1 text-zinc-100">{stats.total}</h3>
-            </div>
-            <div className="p-3 bg-zinc-850 rounded-lg text-indigo-400 border border-zinc-800">
-              <Sliders className="w-5 h-5" />
-            </div>
-          </div>
-
-          <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-900/80 backdrop-blur flex items-center justify-between">
-            <div>
-              <p className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Tasa de Éxito</p>
-              <h3 className="text-2xl font-bold mt-1 text-emerald-400">{stats.successRate}%</h3>
-            </div>
-            <div className="p-3 bg-zinc-850 rounded-lg text-emerald-400 border border-zinc-800">
-              <CheckCircle className="w-5 h-5" />
-            </div>
-          </div>
-
-          <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-900/80 backdrop-blur flex items-center justify-between">
-            <div>
-              <p className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Errores Totales</p>
-              <h3 className="text-2xl font-bold mt-1 text-rose-400">{stats.failed}</h3>
-            </div>
-            <div className="p-3 bg-zinc-850 rounded-lg text-rose-400 border border-zinc-800">
-              <XCircle className="w-5 h-5" />
-            </div>
-          </div>
-
-          <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-900/80 backdrop-blur flex items-center justify-between">
-            <div>
-              <p className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Promedio de Proceso</p>
-              <h3 className="text-2xl font-bold mt-1 text-zinc-100 font-mono">{stats.avgTime}s</h3>
-            </div>
-            <div className="p-3 bg-zinc-850 rounded-lg text-zinc-400 border border-zinc-800">
-              <Clock className="w-5 h-5 text-indigo-400" />
-            </div>
-          </div>
-
-          <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-900/80 backdrop-blur flex items-center justify-between">
-            <div>
-              <p className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Servicio AWS S3</p>
-              <h3 className="text-2xl font-bold mt-1 text-sky-400">Activo</h3>
-            </div>
-            <div className="p-3 bg-zinc-850 rounded-lg text-sky-400 border border-zinc-800">
-              <ExternalLink className="w-5 h-5" />
-            </div>
-          </div>
-        </section>
-
-        {/* TWO COLUMN INTERFACE (FORM + TABLE) */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-          
-          {/* TRIGGER FORM PANEL */}
-          <section className="lg:col-span-1 p-5 rounded-xl bg-zinc-900/30 border border-zinc-900 backdrop-blur space-y-4">
-            <div className="flex items-center gap-2 border-b border-zinc-900 pb-3">
-              <Play className="w-4 h-4 text-indigo-400" />
-              <h2 className="text-sm font-bold text-zinc-200 uppercase tracking-wider">Ejecutar Nueva Estrategia</h2>
-            </div>
-
-            <form onSubmit={handleExecute} className="space-y-4">
-              <div>
-                <label className="block text-xs text-zinc-400 font-semibold mb-1">Nombre de la Agencia</label>
-                <div className="relative">
-                  <Briefcase className="absolute left-3 top-3 w-4 h-4 text-zinc-500" />
-                  <input
-                    type="text"
-                    required
-                    value={agencyName}
-                    onChange={(e) => setAgencyName(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 focus:border-indigo-500/50 rounded-lg py-2 pl-9 pr-3 text-sm focus:outline-none text-zinc-200 placeholder-zinc-600"
-                    placeholder="Jetour Soueast Dealer Demo"
-                  />
+        
+        {/* STATS OVERVIEW CARDS & DASHBOARD */}
+        {activeTab === "dashboard" ? (
+          <>
+            <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-900/80 backdrop-blur flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Ejecuciones Totales</p>
+                  <h3 className="text-2xl font-bold mt-1 text-zinc-100">{stats.total}</h3>
+                </div>
+                <div className="p-3 bg-zinc-850 rounded-lg text-indigo-400 border border-zinc-800">
+                  <Sliders className="w-5 h-5" />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-900/80 backdrop-blur flex items-center justify-between">
                 <div>
-                  <label className="block text-xs text-zinc-400 font-semibold mb-1">Mes / Periodo</label>
-                  <div className="relative">
+                  <p className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Tasa de Éxito</p>
+                  <h3 className="text-2xl font-bold mt-1 text-emerald-400">{stats.successRate}%</h3>
+                </div>
+                <div className="p-3 bg-zinc-850 rounded-lg text-emerald-400 border border-zinc-800">
+                  <CheckCircle className="w-5 h-5" />
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-900/80 backdrop-blur flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Errores Totales</p>
+                  <h3 className="text-2xl font-bold mt-1 text-rose-400">{stats.failed}</h3>
+                </div>
+                <div className="p-3 bg-zinc-850 rounded-lg text-rose-400 border border-zinc-800">
+                  <XCircle className="w-5 h-5" />
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-900/80 backdrop-blur flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Última Corrida</p>
+                  <h3 className="text-sm font-semibold mt-1.5 text-zinc-300 truncate max-w-[150px]">
+                    {stats.lastRunMonth || "Ninguna"}
+                  </h3>
+                </div>
+                <div className="p-3 bg-zinc-850 rounded-lg text-zinc-400 border border-zinc-800">
+                  <Calendar className="w-5 h-5" />
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-900/80 backdrop-blur flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Tiempo Promedio</p>
+                  <h3 className="text-2xl font-bold mt-1 text-amber-400">{stats.avgTime}s</h3>
+                </div>
+                <div className="p-3 bg-zinc-850 rounded-lg text-amber-400 border border-zinc-800">
+                  <Clock className="w-5 h-5" />
+                </div>
+              </div>
+            </section>
+
+            {/* TWO-COLUMN GRID FOR FORM & LOGS */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              
+              {/* EXECUTION CONTROL FORM (Left Column) */}
+              <section className="lg:col-span-4 p-5 rounded-xl bg-zinc-900/40 border border-zinc-900/80 backdrop-blur space-y-4">
+                <div className="flex items-center gap-2 border-b border-zinc-900 pb-3">
+                  <Layers className="w-5 h-5 text-indigo-400" />
+                  <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-wider">Ejecutar Nueva Estrategia</h3>
+                </div>
+
+                <form onSubmit={handleExecute} className="space-y-4">
+                  
+                  {/* Target Agency */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Agencia Corporativa</label>
+                    <input
+                      type="text"
+                      value={agencyName}
+                      onChange={(e) => setAgencyName(e.target.value)}
+                      className="w-full p-2.5 rounded bg-zinc-950 border border-zinc-900 focus:border-zinc-800 text-zinc-300 text-sm focus:outline-none transition-all"
+                      required
+                    />
+                  </div>
+
+                  {/* Period Selection (Month / Year) */}
+                  <div className="space-y-1 relative">
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Periodo Objetivo</label>
                     <button
                       type="button"
                       onClick={() => setShowDatePicker(!showDatePicker)}
-                      className="w-full bg-zinc-950 border border-zinc-800 focus:border-indigo-500/50 rounded-lg py-2.5 px-3 text-xs focus:outline-none text-zinc-200 flex items-center justify-between cursor-pointer gap-1.5 min-w-0"
+                      className="w-full p-2.5 rounded bg-zinc-950 border border-zinc-900 focus:border-zinc-800 text-zinc-300 text-sm text-left flex justify-between items-center focus:outline-none hover:bg-zinc-900/20 transition-all"
                     >
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <Calendar className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
-                        <span className="truncate">{MONTHS_SPANISH[selectedMonth]} {selectedYear}</span>
-                      </div>
-                      <span className="text-zinc-500 text-[10px] flex-shrink-0">▼</span>
+                      <span>{monthName}</span>
+                      <Calendar className="w-4 h-4 text-zinc-500" />
                     </button>
 
                     {showDatePicker && (
-                      <>
-                        <div
-                          className="fixed inset-0 z-10"
-                          onClick={() => setShowDatePicker(false)}
-                        />
-                        <div className="absolute left-0 mt-2 p-3 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl z-20 w-64">
-                          <div className="flex items-center justify-between border-b border-zinc-850 pb-2 mb-2">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedYear(prev => prev - 1)}
-                              className="p-1 hover:bg-zinc-800 rounded text-zinc-400 hover:text-white transition-all text-xs font-bold"
-                            >
-                              &larr;
-                            </button>
-                            <span className="text-sm font-bold text-zinc-200">{selectedYear}</span>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedYear(prev => prev + 1)}
-                              className="p-1 hover:bg-zinc-800 rounded text-zinc-400 hover:text-white transition-all text-xs font-bold"
-                            >
-                              &rarr;
-                            </button>
-                          </div>
-
+                      <div className="absolute top-full left-0 right-0 mt-1 p-3 bg-zinc-900 border border-zinc-850 rounded shadow-xl z-20 space-y-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Año</label>
+                          <select
+                            value={selectedYear}
+                            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                            className="w-full p-2 bg-zinc-950 border border-zinc-800 text-zinc-300 rounded text-xs focus:outline-none"
+                          >
+                            <option value={2026}>2026</option>
+                            <option value={2025}>2025</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Mes</label>
                           <div className="grid grid-cols-3 gap-1">
-                            {MONTHS_SPANISH.map((m, idx) => (
+                            {MONTHS_SPANISH.map((mName, idx) => (
                               <button
-                                key={m}
+                                key={mName}
                                 type="button"
                                 onClick={() => {
                                   setSelectedMonth(idx);
                                   setShowDatePicker(false);
                                 }}
-                                className={`py-1.5 px-2 text-xs font-semibold rounded text-center transition-all cursor-pointer ${
+                                className={`p-1.5 rounded text-[11px] font-medium transition-all ${
                                   selectedMonth === idx
-                                    ? "bg-indigo-600 text-white shadow-md"
-                                    : "bg-zinc-950/40 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+                                    ? "bg-indigo-600 text-white"
+                                    : "bg-zinc-950 text-zinc-400 hover:text-zinc-200"
                                 }`}
                               >
-                                {m.substring(0, 3)}
+                                {mName.substring(0, 3)}
                               </button>
                             ))}
                           </div>
                         </div>
-                      </>
+                      </div>
                     )}
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-xs text-zinc-400 font-semibold mb-1">Modo Reporte</label>
-                  <div className="relative">
-                    <Layers className="absolute left-3 top-3 w-4 h-4 text-zinc-500" />
-                    <select
-                      value={reportMode}
-                      onChange={(e) => setReportMode(e.target.value)}
-                      className="w-full bg-zinc-950 border border-zinc-800 focus:border-indigo-500/50 rounded-lg py-2 pl-9 pr-3 text-sm focus:outline-none text-zinc-200 appearance-none cursor-pointer"
-                    >
-                      <option value="Triple">Triple (Completo)</option>
-                      <option value="Single">Single (Solo Research)</option>
-                    </select>
+                  {/* Destination Email */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Email del Destinatario</label>
+                    <div className="relative">
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full p-2.5 pl-9 rounded bg-zinc-950 border border-zinc-900 focus:border-zinc-800 text-zinc-300 text-sm focus:outline-none transition-all"
+                        placeholder="ejemplo@agencia.mx"
+                        required
+                      />
+                      <Mail className="w-4 h-4 text-zinc-650 absolute left-3 top-3.5" />
+                    </div>
+                  </div>
+
+                  {/* Research Mode */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">Modo de Investigación</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {["Basica", "Intermedia", "Avanzada"].map((mode) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => setResearchMode(mode)}
+                          className={`p-2 rounded text-xs font-semibold border transition-all ${
+                            researchMode === mode
+                              ? "bg-indigo-950/30 border-indigo-500/50 text-zinc-100"
+                              : "bg-zinc-950/60 border-zinc-900/80 text-zinc-500 hover:text-zinc-300"
+                          }`}
+                        >
+                          {mode === "Basica" ? "Básica (1m)" : mode === "Intermedia" ? "Interm (7m)" : "Avanz (9m)"}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-zinc-550 leading-relaxed font-light">
+                      El modo afecta la profundidad del Deep Research. Los tiempos estimados corresponden a ejecuciones frías; con caché activa es inmediato (1s).
+                    </p>
+                  </div>
+
+                  {/* Submit Button */}
+                  <button
+                    type="submit"
+                    disabled={executing}
+                    className="w-full py-3 rounded bg-gradient-to-r from-indigo-600 to-purple-700 hover:from-indigo-550 hover:to-purple-650 text-white font-bold text-sm shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    {executing ? (
+                      <>
+                        <RotateCw className="w-4 h-4 animate-spin" />
+                        Procesando Investigación AI...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4 fill-white" />
+                        Iniciar Corrida de Estrategia
+                      </>
+                    )}
+                  </button>
+
+                </form>
+              </section>
+
+              {/* EXECUTION HISTORY LOGS TABLE (Right Column) */}
+              <section className="lg:col-span-8 p-5 rounded-xl bg-zinc-900/40 border border-zinc-900/80 backdrop-blur space-y-4">
+                
+                {/* Table Header / Filters */}
+                <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between border-b border-zinc-900 pb-4">
+                  <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-wider">Historial de Ejecuciones</h3>
+                  <div className="flex gap-2">
+                    {/* Status filter selection */}
+                    <div className="relative">
+                      <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="bg-zinc-950 border border-zinc-900 hover:border-zinc-800 text-zinc-400 rounded px-3 py-1.5 text-xs focus:outline-none transition-all"
+                      >
+                        <option value="ALL">Todos los Estatus</option>
+                        <option value="SUCCESS">Éxito</option>
+                        <option value="FAILED">Fallidos</option>
+                      </select>
+                    </div>
+
+                    {/* Global search input */}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Buscar por mes, agencia..."
+                        value={globalFilter}
+                        onChange={(e) => setGlobalFilter(e.target.value)}
+                        className="bg-zinc-950 border border-zinc-900 hover:border-zinc-800 text-zinc-300 pl-8 pr-3 py-1.5 rounded text-xs focus:outline-none transition-all placeholder:text-zinc-650"
+                      />
+                      <Search className="w-3.5 h-3.5 text-zinc-600 absolute left-2.5 top-2.5" />
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs text-zinc-400 font-semibold mb-1">Modo de Investigación (Deep Research)</label>
-                <div className="relative">
-                  <Sliders className="absolute left-3 top-3 w-4 h-4 text-zinc-500" />
-                  <select
-                    value={researchMode}
-                    onChange={(e) => setResearchMode(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 focus:border-indigo-500/50 rounded-lg py-2 pl-9 pr-3 text-sm focus:outline-none text-zinc-200 appearance-none cursor-pointer"
-                  >
-                    <option value="Basica">Básica (Rápida)</option>
-                    <option value="Intermedia">Intermedia (Agente)</option>
-                    <option value="Avanzada">Avanzada (Agente Pro)</option>
-                  </select>
+                {/* Table Box */}
+                <div className="overflow-x-auto min-h-[300px]">
+                  {loading ? (
+                    <div className="flex flex-col items-center justify-center py-20 gap-3">
+                      <RotateCw className="w-8 h-8 text-indigo-500 animate-spin" />
+                      <p className="text-xs text-zinc-500 font-medium">Cargando base de datos...</p>
+                    </div>
+                  ) : filteredData.length === 0 ? (
+                    <div className="text-center py-20 space-y-2 border border-dashed border-zinc-900 rounded-lg">
+                      <Settings className="w-10 h-10 text-zinc-650 mx-auto" />
+                      <h3 className="text-zinc-400 font-bold">No se encontraron registros</h3>
+                      <p className="text-xs text-zinc-500 max-w-sm mx-auto">
+                        Aún no hay ejecuciones de estrategia que coincidan con los filtros aplicados.
+                      </p>
+                    </div>
+                  ) : (
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        {table.getHeaderGroups().map((headerGroup) => (
+                          <tr key={headerGroup.id} className="border-b border-zinc-900">
+                            {headerGroup.headers.map((header) => (
+                              <th
+                                key={header.id}
+                                className="pb-3 text-xs font-bold text-zinc-400 uppercase tracking-wider px-3"
+                              >
+                                {flexRender(header.column.columnDef.header, header.getContext())}
+                              </th>
+                            ))}
+                          </tr>
+                        ))}
+                      </thead>
+                      <tbody>
+                        {table.getRowModel().rows.map((row) => (
+                          <tr
+                            key={row.id}
+                            className="border-b border-zinc-900 hover:bg-zinc-900/10 transition-colors"
+                          >
+                            {row.getVisibleCells().map((cell) => (
+                              <td key={cell.id} className="py-3.5 px-3 text-sm">
+                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs text-zinc-400 font-semibold mb-1">Destinatario del Reporte</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 w-4 h-4 text-zinc-500" />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 focus:border-indigo-500/50 rounded-lg py-2 pl-9 pr-3 text-sm focus:outline-none text-zinc-200 placeholder-zinc-600"
-                    placeholder="email@dominio.com"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={executing}
-                className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-650 hover:to-purple-750 text-white rounded-lg py-2.5 font-semibold text-sm transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {executing ? (
-                  <>
-                    <RotateCw className="w-4 h-4 animate-spin" />
-                    Ejecutando Estrategia...
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4 fill-white" />
-                    Ejecutar Estrategia
-                  </>
+                {/* Table Pagination */}
+                {!loading && filteredData.length > 0 && (
+                  <div className="flex items-center justify-between border-t border-zinc-900 pt-4 text-xs">
+                    <span className="text-zinc-500">
+                      Mostrando {table.getRowModel().rows.length} de {filteredData.length} registros
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => table.previousPage()}
+                        disabled={!table.getCanPreviousPage()}
+                        className="px-3 py-1.5 rounded bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      >
+                        Anterior
+                      </button>
+                      <button
+                        onClick={() => table.nextPage()}
+                        disabled={!table.getCanNextPage()}
+                        className="px-3 py-1.5 rounded bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      >
+                        Siguiente
+                      </button>
+                    </div>
+                  </div>
                 )}
-              </button>
-            </form>
-          </section>
+              </section>
 
-          {/* LOGS TABLE PANEL */}
-          <section className="lg:col-span-3 p-5 rounded-xl bg-zinc-900/30 border border-zinc-900 backdrop-blur space-y-4">
-            
-            {/* Table Filters & Toolbar */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-zinc-900 pb-4">
-              <div>
-                <h2 className="text-sm font-bold text-zinc-200 uppercase tracking-wider">Historial de Ejecuciones</h2>
-                <p className="text-xs text-zinc-450 mt-0.5">Logs de auditoría y descargas asíncronas directas de S3</p>
-              </div>
-
-              <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
-                <div className="relative w-full sm:w-64">
-                  <Search className="absolute left-3 top-2.5 w-4 h-4 text-zinc-500" />
-                  <input
-                    type="text"
-                    value={globalFilter}
-                    onChange={(e) => setGlobalFilter(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 focus:border-indigo-500/50 rounded-lg py-1.5 pl-9 pr-3 text-xs focus:outline-none text-zinc-200 placeholder-zinc-600"
-                    placeholder="Buscar agencia, mes..."
-                  />
-                </div>
-
-                <div className="flex bg-zinc-950 rounded-lg p-0.5 border border-zinc-800 w-full sm:w-auto justify-around">
-                  <button
-                    onClick={() => setStatusFilter("ALL")}
-                    className={`px-3 py-1 rounded text-xs font-semibold cursor-pointer transition-all ${
-                      statusFilter === "ALL" ? "bg-zinc-800 text-zinc-150" : "text-zinc-500 hover:text-zinc-300"
-                    }`}
-                  >
-                    Todos
-                  </button>
-                  <button
-                    onClick={() => setStatusFilter("SUCCESS")}
-                    className={`px-3 py-1 rounded text-xs font-semibold cursor-pointer transition-all ${
-                      statusFilter === "SUCCESS" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/10" : "text-zinc-500 hover:text-zinc-300"
-                    }`}
-                  >
-                    Éxito
-                  </button>
-                  <button
-                    onClick={() => setStatusFilter("FAILED")}
-                    className={`px-3 py-1 rounded text-xs font-semibold cursor-pointer transition-all ${
-                      statusFilter === "FAILED" ? "bg-rose-500/10 text-rose-400 border border-rose-500/10" : "text-zinc-500 hover:text-zinc-300"
-                    }`}
-                  >
-                    Fallidos
-                  </button>
+            </div>
+          </>
+        ) : (
+          <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Prompts list (Left Column) */}
+            <div className="lg:col-span-4 space-y-4 animate-in fade-in slide-in-from-left-4 duration-200">
+              <div className="p-5 rounded-xl bg-zinc-900/40 border border-zinc-900/80 backdrop-blur">
+                <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-wider mb-4">Plantillas Disponibles</h3>
+                <div className="space-y-2">
+                  {prompts.length === 0 ? (
+                    <div className="flex justify-center py-8">
+                      <RotateCw className="w-5 h-5 text-indigo-500 animate-spin" />
+                    </div>
+                  ) : (
+                    prompts.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => selectPrompt(p)}
+                        className={`w-full text-left p-3.5 rounded-lg border transition-all cursor-pointer flex flex-col gap-1.5 ${
+                          selectedPrompt?.key === p.key
+                            ? "bg-indigo-950/20 border-indigo-500/50 text-zinc-100 shadow-md"
+                            : "bg-zinc-950/60 border-zinc-900/80 hover:border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                        }`}
+                      >
+                        <span className="text-[10px] font-mono font-bold text-indigo-400 bg-indigo-950/40 px-2 py-0.5 rounded w-fit uppercase">
+                          {p.key}
+                        </span>
+                        <span className="text-sm font-bold block">{p.name}</span>
+                        {p.description && (
+                          <span className="text-xs text-zinc-500 font-light line-clamp-2">{p.description}</span>
+                        )}
+                      </button>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* TABLE ELEMENT */}
-            <div className="overflow-x-auto">
-              {loading ? (
-                <div className="flex flex-col items-center justify-center py-20 gap-3">
-                  <RotateCw className="w-8 h-8 text-indigo-400 animate-spin" />
-                  <span className="text-sm text-zinc-400">Cargando logs del servidor...</span>
-                </div>
-              ) : filteredData.length === 0 ? (
-                <div className="text-center py-20 space-y-2 border border-dashed border-zinc-900 rounded-lg">
-                  <Settings className="w-10 h-10 text-zinc-650 mx-auto" />
-                  <h3 className="text-zinc-400 font-bold">No se encontraron registros</h3>
-                  <p className="text-xs text-zinc-500 max-w-sm mx-auto">
-                    Aún no hay ejecuciones de estrategia que coincidan con los filtros aplicados.
-                  </p>
+            {/* Prompt Editor (Right Column) */}
+            <div className="lg:col-span-8 animate-in fade-in slide-in-from-right-4 duration-200">
+              {selectedPrompt ? (
+                <div className="p-5 rounded-xl bg-zinc-900/40 border border-zinc-900/80 backdrop-blur space-y-4">
+                  <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
+                    <div>
+                      <h3 className="text-lg font-bold text-zinc-200">{selectedPrompt.name}</h3>
+                      <p className="text-xs text-zinc-500 mt-1">{selectedPrompt.description}</p>
+                    </div>
+                    <span className="text-xs font-mono text-zinc-500 bg-zinc-950/60 px-3 py-1.5 rounded border border-zinc-900">
+                      Clave: {selectedPrompt.key}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">Cuerpo de la Plantilla (Instrucciones)</label>
+                    <textarea
+                      value={promptContent}
+                      onChange={(e) => setPromptContent(e.target.value)}
+                      className="w-full h-[550px] p-4 rounded-lg bg-zinc-950 border border-zinc-900 focus:border-zinc-700 text-zinc-300 font-mono text-xs leading-relaxed focus:outline-none resize-y selection:bg-indigo-500/20"
+                      placeholder="Escribe las instrucciones del prompt aquí..."
+                    />
+                  </div>
+
+                  {/* Variables Helper Box */}
+                  <div className="p-3.5 rounded bg-zinc-950/60 border border-zinc-900 text-xs text-zinc-400 space-y-1.5 font-light">
+                    <span className="font-bold text-zinc-350">💡 Marcadores dinámicos disponibles (serán reemplazados en tiempo de ejecución):</span>
+                    {selectedPrompt.key === 'brand-strategy' ? (
+                      <p className="font-mono text-[10px] text-indigo-400 bg-zinc-900/50 p-1.5 rounded leading-relaxed border border-zinc-900">
+                        {"{{SALES_METRICS}}"} (métricas cuantitativas en JSON) | {"{{DEEP_RESEARCH}}"} (investigación cualitativa MD) | {"{{M1}}"}, {"{{M2}}"}, {"{{M3}}"} (nombres de los meses del trimestre)
+                      </p>
+                    ) : (
+                      <p className="font-mono text-[10px] text-indigo-400 bg-zinc-900/50 p-1.5 rounded leading-relaxed border border-zinc-900">
+                        {"{{MASTER_STRATEGY}}"} (estrategia nacional) | {"{{DIST_NAME}}"} (sucursal) | {"{{RAZON_SOCIAL}}"} | {"{{DIST_ID}}"} | {"{{CIUDAD}}"} | {"{{ESTADO}}"} | {"{{SALES_3M_2026}}"} | {"{{SALES_3M_2025}}"} | {"{{GROWTH_RATE}}"} | {"{{MONTH_NAME}}"} | {"{{SUGGESTED_GOAL}}"}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end gap-3 border-t border-zinc-900 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setPromptContent(selectedPrompt.content)}
+                      className="px-4 py-2 bg-zinc-950 border border-zinc-900 hover:border-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs rounded transition-all cursor-pointer"
+                    >
+                      Revertir cambios locales
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSavePrompt}
+                      disabled={savingPrompt}
+                      className="inline-flex items-center gap-1.5 px-4.5 py-2 rounded text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      {savingPrompt ? (
+                        <>
+                          <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                          Guardando...
+                        </>
+                      ) : (
+                        "Guardar Cambios"
+                      )}
+                    </button>
+                  </div>
                 </div>
               ) : (
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    {table.getHeaderGroups().map((headerGroup) => (
-                      <tr key={headerGroup.id} className="border-b border-zinc-900">
-                        {headerGroup.headers.map((header) => (
-                          <th
-                            key={header.id}
-                            className="pb-3 text-xs font-bold text-zinc-400 uppercase tracking-wider px-3"
-                          >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                          </th>
-                        ))}
-                      </tr>
-                    ))}
-                  </thead>
-                  <tbody>
-                    {table.getRowModel().rows.map((row) => (
-                      <tr
-                        key={row.id}
-                        className="border-b border-zinc-900 hover:bg-zinc-900/10 transition-colors"
-                      >
-                        {row.getVisibleCells().map((cell) => (
-                          <td key={cell.id} className="py-3.5 px-3 text-sm">
-                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="p-12 rounded-xl bg-zinc-900/40 border border-zinc-900/80 backdrop-blur text-center text-zinc-500">
+                  Selecciona una plantilla del listado izquierdo para editarla.
+                </div>
               )}
             </div>
-
-            {/* Table Pagination */}
-            {!loading && filteredData.length > 0 && (
-              <div className="flex items-center justify-between border-t border-zinc-900 pt-4 text-xs">
-                <span className="text-zinc-500">
-                  Mostrando {table.getRowModel().rows.length} de {filteredData.length} registros
-                </span>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => table.previousPage()}
-                    disabled={!table.getCanPreviousPage()}
-                    className="px-3 py-1.5 rounded bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                  >
-                    Anterior
-                  </button>
-                  <button
-                    onClick={() => table.nextPage()}
-                    disabled={!table.getCanNextPage()}
-                    className="px-3 py-1.5 rounded bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                  >
-                    Siguiente
-                  </button>
-                </div>
-              </div>
-            )}
           </section>
-
-        </div>
+        )}
 
       </main>
 

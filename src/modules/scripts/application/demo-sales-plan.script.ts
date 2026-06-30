@@ -8,6 +8,7 @@ import { AuthService } from '../../auth/application/auth.service';
 import { SalesAnalyticsService } from '../../external-data/application/sales-analytics.service';
 import { SalesDataService } from '../../external-data/application/sales-data.service';
 import { ResearchStorageService } from '../../gemini/application/research-storage.service';
+import { PromptTemplateService } from '../../gemini/application/prompt-template.service';
 import { PrismaService } from '../../database/prisma.service';
 import { performance } from 'perf_hooks';
 import * as fs from 'fs';
@@ -29,6 +30,7 @@ export class DemoSalesPlanScript extends BaseScript {
     private readonly researchStorageService: ResearchStorageService,
     private readonly prisma: PrismaService,
     private readonly salesDataService: SalesDataService,
+    private readonly promptTemplateService: PromptTemplateService,
   ) {
     super();
   }
@@ -60,41 +62,20 @@ export class DemoSalesPlanScript extends BaseScript {
           queryMonth = foundIndex + 1;
         }
       }
-      const queryYear = 2026;
+      let queryYear = 2026;
+      if (monthName) {
+        const yearMatch = monthName.match(/\b(202\d)\b/);
+        if (yearMatch) {
+          queryYear = parseInt(yearMatch[1], 10);
+        }
+      }
       const metrics = await this.salesAnalyticsService.generateStrategyMetrics(queryYear, queryMonth);
       this.logger.log('Strategy comparison data and recommended targets calculated.');
 
-      // Share researchPrompt across both Single and Triple flows
-      const researchPrompt = `
-Eres un Consultor Senior de Estrategia de Negocios y Marketing Digital, experto en el mercado automotriz mexicano y especializado en el segmento de SUVs y vehículos de origen asiático. 
-
-Tu objetivo es realizar una investigación de mercado profunda y generar un Plan Estratégico Mensual (Deep Research) para la marca de automóviles Jetour y Soueast en México, correspondiente al periodo de: ${monthName} de 2026.
-
-Esta marca tiene menos de 2 años en el mercado y muchas de sus más de 30 agencias son nuevas y apenas comienzan a operar.
-
-Instrucciones de investigación y análisis:
-1. **Tendencias del Consumidor en México (Trimestre a futuro):**
-   - Identifica y analiza las tendencias macro y microeconómicas que afectarán la compra de vehículos nuevos y seminuevos en los próximos 3 meses en México (ej. tasas de interés, inflación, disponibilidad de inventario).
-   - Analiza el interés de búsqueda y tendencias en el segmento de SUVs familiares, SUVs compactas y crossovers de origen chino.
-
-2. **Temporalidades, Fechas Especiales y Campañas de Moda:**
-   - Detalla las fechas comerciales, festividades, eventos de la industria o hitos culturales que ocurrirán en los próximos 3 meses en México (ej. Buen Fin, Regreso a Clases, Hot Sale, Fiestas Patrias, Vacaciones, etc., según corresponda a ${monthName}).
-   - Propón conceptos de campañas promocionales disruptivas y de moda que las agencias puedan adaptar localmente.
-
-3. **Estrategia y Conceptos de Venta (Nuevos vs. Seminuevos):**
-   - Define tácticas específicas para impulsar la venta de la gama Jetour-Soueast (enfocándote en su propuesta de valor: tecnología, espacio, diseño y garantía competitiva).
-   - Desarrolla una estrategia para captación y rotación de autos Seminuevos bajo el esquema "Trade-in" (toma a cuenta de vehículo usado para comprar un Jetour/Soueast nuevo).
-
-Genera tu respuesta en formato Markdown estructurado exactamente con las siguientes secciones:
-# 🔍 REPORTE DE DEEP RESEARCH AUTOMOTRIZ - ${monthName} 2026
-## 1. ANÁLISIS DE TENDENCIAS MACRO Y MERCADO AUTOMOTRIZ EN MÉXICO
-## 2. CALENDARIO DE TEMPORALIDADES Y CAMPAÑAS RECOMENDADAS (PRÓXIMOS 3 MESES)
-## 3. PROPUESTA DE CAMPAÑA CORE MENSUAL Y COPYS SUGERIDOS
-## 4. TÁCTICAS DE RETENCIÓN, CAPTACIÓN Y ESTRATEGIA DE SEMINUEVOS (TRADE-IN)
-## 5. RIESGOS CLAVE DETECTADOS Y MITIGACIONES SUGERIDAS
-
-Mantén un tono profesional, estratégico, altamente detallado y accionado por datos. No uses generalidades; ofrece ideas prácticas y conceptos creativos de campañas listos para ser implementados por las agencias.
-      `;
+      // Share researchPrompt across both Single and Triple flows resolved from DB
+      const researchPrompt = await this.promptTemplateService.resolvePrompt('deep-research', {
+        MONTH_NAME: monthName,
+      });
 
       // --- FLOW A: SINGLE DEEP RESEARCH ONLY ---
       if (reportMode === 'Single') {
@@ -210,17 +191,17 @@ Este documento detalla las tendencias del consumidor, temporalidades y tácticas
 
         const emailBodyText = `Estimado Director,
 
-Adjuntamos el Plan Estratégico de Ventas y Marketing correspondiente al periodo de ${monthName} de 2026. Este reporte unifica el análisis cuantitativo de ventas históricas, las proyecciones de objetivos sugeridos por modelo y la investigación estratégica de tendencias de mercado (Deep Research) para impulsar el desempeño comercial de la marca Jetour y Soueast en México.
+Adjuntamos el Plan Estratégico de Ventas y Marketing correspondiente al periodo de ${monthName}. Este reporte unifica el análisis cuantitativo de ventas históricas, las proyecciones de objetivos sugeridos por modelo y la investigación estratégica de tendencias de mercado (Deep Research) para impulsar el desempeño comercial de la marca Jetour y Soueast en México.
 
 El objetivo de ventas global recomendado para este periodo se establece en ${metrics.totals.suggestedGoal2026} unidades, lo que representa una tendencia de crecimiento anual acumulada del ${metrics.totals.growthRate}% en el trimestre de comparación. La justificación de metas individuales por modelo y las tácticas específicas de campañas de temporada y rotación de unidades seminuevas (Trade-in) se detallan a profundidad en el documento ejecutivo PDF anexo a este mensaje.`;
 
         this.logger.log(`Sending cached unified Strategic Sales Plan email with 3 attachments to ${emailDestination}...`);
         const emailSent = await this.emailService.sendMailWithAttachment(
           emailDestination,
-          `Plan Estratégico de Ventas - ${monthName} 2026 (Caché)`,
+          `Plan Estratégico de Ventas - ${monthName} (Caché)`,
           emailBodyText,
           pdfBuffer,
-          `Plan_Estrategico_Ventas_${researchMode}_${monthName.replace(/\s+/g, '_')}_2026.pdf`,
+          `Plan_Estrategico_Ventas_${researchMode}_${monthName.replace(/\s+/g, '_')}.pdf`,
           undefined,
           additionalAttachments,
         );
@@ -285,61 +266,31 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
         }
 
         const monthsEs = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-        const monthIdx = monthsEs.findIndex(m => m.toLowerCase().includes(monthName.toLowerCase()));
+        const monthIdx = monthsEs.findIndex(m => monthName.toLowerCase().includes(m.toLowerCase()));
         
-        let m1 = 'Junio 2026';
-        let m2 = 'Julio 2026';
-        let m3 = 'Agosto 2026';
+        let m1 = `Junio ${queryYear}`;
+        let m2 = `Julio ${queryYear}`;
+        let m3 = `Agosto ${queryYear}`;
         
         if (monthIdx !== -1) {
-          m1 = `${monthsEs[monthIdx]} 2026`;
-          m2 = `${monthsEs[(monthIdx + 1) % 12]} 2026`;
-          m3 = `${monthsEs[(monthIdx + 2) % 12]} 2026`;
+          const y1 = queryYear;
+          const y2 = (monthIdx + 1) > 11 ? queryYear + 1 : queryYear;
+          const y3 = (monthIdx + 2) > 11 ? queryYear + 1 : queryYear;
+
+          m1 = `${monthsEs[monthIdx]} ${y1}`;
+          m2 = `${monthsEs[(monthIdx + 1) % 12]} ${y2}`;
+          m3 = `${monthsEs[(monthIdx + 2) % 12]} ${y3}`;
         }
 
         // --- FASE DE UNIFICACIÓN ESTRATÉGICA CON LLM (Gemini 3.5 Flash) (NIVEL 2 MISS) ---
         this.logger.log('Generating Unified Strategic Executive Report with Gemini 3.5 Flash...');
-        const unificationPrompt = `
-Eres un Consultor Senior de Estrategia Comercial Automotriz para la marca Jetour & Soueast en México.
-
-Tu objetivo es tomar los datos cuantitativos de ventas y objetivos históricos (obtenidos de las APIs de la empresa) y combinarlos inteligentemente con las tendencias de mercado del reporte de Deep Research cualitativo. Debes producir un único **Reporte Ejecutivo y Plan de Trabajo Estratégico Unificado** que de sentido a los números utilizando el contexto del mercado.
-
-DATOS CUANTITATIVOS DE VENTAS Y METAS (.NET API):
-${JSON.stringify(metrics, null, 2)}
-
-REPORTE DEEP RESEARCH CUALITATIVO DE MERCADO:
-${realDeepResearchMarkdown}
-
-INSTRUCCIONES DE REDACCIÓN E IMPERATIVAS:
-1. **FUSIONA LOS DATOS CON LA ESTRATEGIA:** Enlaza y justifica la meta de ventas sugerida de cada modelo (ej. Jetour X70, Dashing, etc.) directamente con las temporalidades de campaña y tendencias cualitativas descritas en el Deep Research.
-2. **PLANTEA TAREAS COMERCIALES PUNTUALES:** Define una lista de tareas de negocio y marketing sumamente específicas y accionables para el equipo comercial, ligando metas y desempeños YoY.
-3. **SECCIÓN EXCLUSIVA DE CAMPAÑAS DE MARKETING:**
-   Debes incluir obligatoriamente una sección titulada exactamente \`## Propuestas de Campañas de Marketing\`.
-   Dentro de esta sección, debes estructurar propuestas comerciales específicas para los próximos 3 meses, iniciando en el mes actual del periodo (${m1}). Debes incluir:
-   - Segmentación clara con subtítulos de nivel 3 (\`### ${m1}\`, \`### ${m2}\`, \`### ${m3}\`).
-   - Exactamente 3 campañas promocionales creativas para cada mes.
-   - **REGLA DE CAMPAÑA TRIMESTRAL DE G700:** Al menos una de las 9 campañas del trimestre (a lo largo de los 3 meses) DEBE estar dedicada a promover el nuevo modelo **Jetour G700** que se acaba de lanzar.
-   - Para cada campaña, incluye:
-     * **Concepto y Explicación:** Justificación estratégica del anuncio ligado a los modelos Jetour/Soueast.
-     * **Copys y Medios de Ads:** Texto publicitario completo listo para publicar en redes sociales o pauta digital (incluyendo hashtags relevantes).
-     * **Prompt de Imagen:** El prompt en inglés detallado para la generación de la imagen publicitaria de la campaña. Escribe en este formato exacto: [PROMPT: write the detailed English prompt here].
-       REGLAS CRÍTICAS PARA EL PROMPT DE IMAGEN:
-       - El prompt DEBE mencionar el modelo específico de vehículo Jetour/Soueast que se promueve (ej. Dashing, S07, T2, G700).
-       - Como el modelo generador de imágenes puede no conocer el diseño exacto por su nombre, DEBES incluir en el prompt una breve descripción física y visual del automóvil basada en las siguientes guías:
-         * **Jetour Dashing:** "Jetour Dashing, a sleek, sporty and modern compact crossover SUV, featuring a futuristic split-grille front, flush pop-out door handles, sharp dynamic LED headlights, and a sporty rear spoiler"
-         * **Soueast S07** / **Jetour S07**: "Soueast S07, a modern, elegant mid-size family SUV, with a cascading chrome front grille, horizontal panoramic LED rear taillight bar, and a premium panoramic sunroof"
-         * **Jetour T2**: "Jetour T2, a rugged, boxy off-road SUV, with a bold horizontal front grid with illuminated letters, high ground clearance, squared-off wheel arches, and a rear-mounted square spare tire carrier"
-         * **Jetour G700**: "Jetour G700, a premium luxury full-size SUV, featuring imposing geometric lines, a heavy horizontal chrome front grille, futuristic vertical and horizontal LED headlight clusters, large luxury multispoke alloy wheels, and a premium presence"
-       - El prompt de la imagen DEBE contextualizarse a un público objetivo de clase media y media-alta de México.
-       - Las locaciones deben sugerir entornos mexicanos típicos de nivel medio-alto (calles residenciales modernas en México, casas contemporáneas, etc.).
-       - Las personas mostradas deben tener rasgos y apariencia latinoamericana/mexicana típica.
-       - PROHIBIDO incluir o hacer referencia a personas de rasgos asiáticos/orientales, letras o caracteres chinos/asiáticos, o edificios con letreros chinos en el prompt. Escribe explícitamente en el prompt la exclusión de elementos asiáticos (ej. "no Asian elements, no Chinese text, no oriental features").
-4. **FORMATO Y ESTRUCTURA (RESTRICCIONES IMPORTANTES):**
-   - **PROHIBIDO EL USO DE TABLAS MARKDOWN:** No utilices caracteres como '|' o '-' para armar tablas. La tabla de métricas ya se dibuja de forma automatizada por el sistema. Todo el reporte debe redactarse exclusivamente en párrafos y viñetas simples (-).
-   - **NO UTILICES FORMATOS DE NEGRITAS MARKDOWN:** Evita envolver palabras en asteriscos '**', ya que el PDF se encargará de formatear los encabezados de forma limpia.
-   - Utiliza exclusivamente subtítulos lógicos de segundo y tercer nivel (## y ###), viñetas simples (-) y párrafos tradicionales.
-5. **TONO Y COMIENZO:** Mantén un tono formal, estratégico e imperativo en las tareas. Inicia directamente con el texto del reporte, sin saludos ni introducciones previas.
-        `;
+        const unificationPrompt = await this.promptTemplateService.resolvePrompt('brand-strategy', {
+          SALES_METRICS: JSON.stringify(metrics, null, 2),
+          DEEP_RESEARCH: realDeepResearchMarkdown,
+          M1: m1,
+          M2: m2,
+          M3: m3,
+        });
 
         unifiedStrategyMarkdown = await this.geminiService.generateText(unificationPrompt, 'gemini-3.5-flash');
         this.logger.log('Unified Strategy Markdown successfully generated by Gemini 3.5 Flash.');
@@ -359,7 +310,9 @@ INSTRUCCIONES DE REDACCIÓN E IMPERATIVAS:
 
       // A) Generar Banner de Portada Dinámica
       this.logger.log('Generating dynamic cover banner image for report...');
-      const bannerPromptText = `A professional, wide-angle banner photo showing the modern showroom of a Jetour and Soueast car dealership in Mexico featuring their latest SUV models in a premium neighborhood during ${monthName} of 2026. The atmosphere is upscale and clean, with local Mexican middle-class buyers exploring the cars. Clean composition, high-end commercial automotive photography style, warm natural sunset lighting, 8k resolution. No Asian text, no Asian characters, and no Asian or oriental people.`;
+      const bannerPromptText = await this.promptTemplateService.resolvePrompt('image-banner', {
+        MONTH_NAME: monthName,
+      });
       
       const bannerHash = crypto.createHash('md5').update(bannerPromptText.trim().toLowerCase()).digest('hex');
       const bannerPath = path.join(cacheImagesDir, `banner_cache_${bannerHash}.jpg`);
@@ -456,7 +409,7 @@ INSTRUCCIONES DE REDACCIÓN E IMPERATIVAS:
       // Build concise 2-paragraph email body
       const emailBodyText = `Estimado Director,
 
-Adjuntamos el Plan Estratégico de Ventas y Marketing correspondiente al periodo de ${monthName} de 2026. Este reporte unifica el análisis cuantitativo de ventas históricas, las proyecciones de objetivos sugeridos por modelo y la investigación estratégica de tendencias de mercado (Deep Research) para impulsar el desempeño comercial de la marca Jetour y Soueast en México.
+Adjuntamos el Plan Estratégico de Ventas y Marketing correspondiente al periodo de ${monthName}. Este reporte unifica el análisis cuantitativo de ventas históricas, las proyecciones de objetivos sugeridos por modelo y la investigación estratégica de tendencias de mercado (Deep Research) para impulsar el desempeño comercial de la marca Jetour y Soueast en México.
 
 El objetivo de ventas global recomendado para este periodo se establece en ${metrics.totals.suggestedGoal2026} unidades, lo que representa una tendencia de crecimiento anual acumulada del ${metrics.totals.growthRate}% en el trimestre de comparación. La justificación de metas individuales por modelo y las tácticas específicas de campañas de temporada y rotación de unidades seminuevas (Trade-in) se detallan a profundidad en el documento ejecutivo PDF anexo a este mensaje.`;
 
@@ -475,24 +428,24 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
       const additionalAttachments: Array<{ content: Buffer; name: string }> = [
         {
           content: Buffer.from(realDeepResearchMarkdown || 'Reporte de Deep Research no disponible.', 'utf-8'),
-          name: `Investigacion_Mercado_Deep_Research_${researchMode}_${monthName.replace(/\s+/g, '_')}_2026.txt`,
+          name: `Investigacion_Mercado_Deep_Research_${researchMode}_${monthName.replace(/\s+/g, '_')}.txt`,
         }
       ];
 
       if (imagesPdfBuffer) {
         additionalAttachments.push({
           content: imagesPdfBuffer,
-          name: `Catalogo_Imagenes_Campanas_${monthName.replace(/\s+/g, '_')}_2026.pdf`,
+          name: `Catalogo_Imagenes_Campanas_${monthName.replace(/\s+/g, '_')}.pdf`,
         });
       }
 
       this.logger.log(`Sending unified Strategic Sales Plan email with 3 attachments to ${emailDestination}...`);
       const emailSent = await this.emailService.sendMailWithAttachment(
         emailDestination,
-        `Plan Estratégico de Ventas y Marketing - ${monthName} 2026`,
+        `Plan Estratégico de Ventas y Marketing - ${monthName}`,
         emailBodyText,
         pdfBuffer,
-        `Plan_Estrategico_Ventas_${researchMode}_${monthName.replace(/\s+/g, '_')}_2026.pdf`,
+        `Plan_Estrategico_Ventas_${researchMode}_${monthName.replace(/\s+/g, '_')}.pdf`,
         undefined,
         additionalAttachments,
       );
@@ -541,33 +494,21 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
               const dealerMetrics = await this.salesAnalyticsService.generateStrategyMetrics(queryYear, queryMonth, distId);
               
               // 2. Build regionalized strategy prompt
-              const dealerPrompt = `
-Eres un Consultor de Estrategia Comercial de Marca Automotriz y estás adaptando la planeación comercial nacional para una agencia en particular.
-
-Este es el Reporte Ejecutivo de Marca ya unificado:
----
-${modifiedMarkdown}
----
-
-Instrucciones:
-Personaliza y regionaliza la estrategia comercial para el siguiente Distribuidor (Dealer):
-- Nombre Comercial: ${distName}
-- Razón Social: ${razonSocial}
-- ID Distribuidor: ${distId}
-- Ubicación: ${ciudad}, ${estado}
-
-Utiliza las siguientes métricas de ventas históricas particulares de este Dealer:
-- Ventas Totales Recientes del Trimestre (2026): ${dealerMetrics.totals.sales3Months2026} unidades.
-- Ventas del mismo periodo del año anterior (2025): ${dealerMetrics.totals.sales3Months2025} unidades.
-- Crecimiento YoY del Dealer: ${dealerMetrics.totals.growthRate}%
-- Meta Sugerida para el Dealer en ${monthName}: ${dealerMetrics.totals.suggestedGoal2026} unidades.
-
-Genera una respuesta en español estructurada en máximo 4 párrafos que contenga:
-1. Una comparación del desempeño de este dealer con la tendencia nacional de la marca.
-2. Tácticas locales/regionales específicas aprovechando su ubicación en la ciudad de ${ciudad}, Estado de ${estado} (o zona geográfica circundante si la ciudad/estado no están detalladas).
-3. Justificación estratégica y de inventario para alcanzar la meta asignada de ${dealerMetrics.totals.suggestedGoal2026} unidades para ${monthName} 2026.
-4. Lineamientos de cómo deben usar el catálogo de campañas y creativos publicitarios nacionales ya generados (reutilizándolos para sus canales locales). No propongas nuevas imágenes, posts o videos.
-`;
+              const dealerPrompt = await this.promptTemplateService.resolvePrompt('dealer-strategy', {
+                MASTER_STRATEGY: modifiedMarkdown,
+                DIST_NAME: distName,
+                RAZON_SOCIAL: razonSocial,
+                DIST_ID: distId,
+                CIUDAD: ciudad,
+                ESTADO: estado,
+                SALES_3M_2026: dealerMetrics.totals.sales3Months2026,
+                SALES_3M_2025: dealerMetrics.totals.sales3Months2025,
+                GROWTH_RATE: dealerMetrics.totals.growthRate,
+                MONTH_NAME: monthName,
+                SUGGESTED_GOAL: dealerMetrics.totals.suggestedGoal2026,
+                YEAR: queryYear,
+                PREV_YEAR: queryYear - 1,
+              });
 
               // 3. Invoke Gemini to customize strategy
               const dealerStrategyText = await this.geminiService.generateText(dealerPrompt, 'gemini-3.5-flash');
@@ -606,14 +547,14 @@ Genera una respuesta en español estructurada en máximo 4 párrafos que conteng
               // 7. Email report to dealer contact (sending to target destination for test/poc)
               await this.emailService.sendMailWithAttachment(
                 emailDestination,
-                `Plan Estratégico Local - ${distName} - ${monthName} 2026`,
+                `Plan Estratégico Local - ${distName} - ${monthName}`,
                 `Estimado Gerente Comercial de ${distName},
 
-Adjuntamos el Plan Estratégico Local de Ventas y Marketing correspondiente al periodo de ${monthName} de 2026, personalizado para tu distribuidor en ${ciudad}, ${estado}.
+Adjuntamos el Plan Estratégico Local de Ventas y Marketing correspondiente al periodo de ${monthName}, personalizado para tu distribuidor en ${ciudad}, ${estado}.
 
 Este reporte atómico detalla tus métricas de ventas locales recientes, la comparativa anual, y las tácticas comerciales recomendadas en base a la línea central de la marca para cumplir tu objetivo mensual de ${dealerMetrics.totals.suggestedGoal2026} unidades.`,
                 dealerPdfBuffer,
-                `Plan_Estrategico_Dealer_${distId}_${monthName.replace(/\s+/g, '_')}_2026.pdf`
+                `Plan_Estrategico_Dealer_${distId}_${monthName.replace(/\s+/g, '_')}.pdf`
               );
 
               this.logger.log(`Dealer ${distName} strategy report successfully generated, uploaded, logged and emailed.`);

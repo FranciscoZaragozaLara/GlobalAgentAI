@@ -19,6 +19,11 @@ export class PdfService {
     bannerInfo?: { path: string; prompt: string; model: string; file: string },
   ): Promise<Buffer> {
     const cleanMonth = month.replace(/\d+/g, '').trim();
+    let year = 2026;
+    const yearMatch = month.match(/\b(202\d)\b/);
+    if (yearMatch) {
+      year = parseInt(yearMatch[1], 10);
+    }
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
       const chunks: Buffer[] = [];
@@ -76,7 +81,7 @@ export class PdfService {
       doc.fillColor('#2B6CB0')
          .fontSize(16)
          .font('Helvetica')
-         .text(`Estrategia Comercial y Objetivos — ${cleanMonth} 2026`, { align: 'left' });
+         .text(`Estrategia Comercial y Objetivos — ${cleanMonth} ${year}`, { align: 'left' });
       
       doc.moveDown(1.5);
       doc.strokeColor('#CBD5E0')
@@ -110,7 +115,7 @@ export class PdfService {
          .text('1. Indicadores de Ventas e Históricos Comparativos');
       
       const monthsEs = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-      const monthIdx = monthsEs.findIndex(m => m.toLowerCase().includes(cleanMonth.toLowerCase()));
+      const monthIdx = monthsEs.findIndex(m => cleanMonth.toLowerCase().includes(m.toLowerCase()));
       let prevMonthsNames = '';
       if (monthIdx !== -1) {
         const p1 = monthsEs[(monthIdx - 3 + 12) % 12].substring(0, 3);
@@ -125,7 +130,7 @@ export class PdfService {
       doc.fillColor('#4A5568')
          .fontSize(10)
          .font('Helvetica')
-         .text(`Comparativa del volumen acumulado de ventas del último trimestre (${prevMonthsNames}) contra el año anterior, mes equivalente de 2025 y objetivo proyectado:`);
+         .text(`Comparativa del volumen acumulado de ventas del último trimestre (${prevMonthsNames}) contra el año anterior, mes equivalente de ${year - 1} y objetivo proyectado:`);
       
       doc.moveDown(1.5);
 
@@ -136,11 +141,11 @@ export class PdfService {
          .fontSize(9)
          .font('Helvetica-Bold')
          .text('Modelo', 60, tableStartY + 7)
-         .text('Trimestre 2025', 150, tableStartY + 7, { width: 70, align: 'center' })
-         .text('Trimestre 2026', 230, tableStartY + 7, { width: 70, align: 'center' })
+         .text(`Trimestre ${year - 1}`, 150, tableStartY + 7, { width: 70, align: 'center' })
+         .text(`Trimestre ${year}`, 230, tableStartY + 7, { width: 70, align: 'center' })
          .text('Crec. YoY %', 310, tableStartY + 7, { width: 60, align: 'center' })
-         .text(`${cleanMonth} 2025`, 380, tableStartY + 7, { width: 70, align: 'center' })
-         .text(`Meta ${cleanMonth} 2026`, 460, tableStartY + 7, { width: 75, align: 'center' });
+         .text(`${cleanMonth} ${year - 1}`, 380, tableStartY + 7, { width: 70, align: 'center' })
+         .text(`Meta ${cleanMonth} ${year}`, 460, tableStartY + 7, { width: 75, align: 'center' });
 
       let currentY = tableStartY + 22;
 
