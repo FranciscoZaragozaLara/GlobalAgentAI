@@ -82,7 +82,7 @@ Genera una respuesta en español estructurada en máximo 4 párrafos que conteng
 
   await prisma.promptTemplate.upsert({
     where: { key: 'brand-strategy' },
-    update: {},
+    update: { content: brandPrompt },
     create: {
       key: 'brand-strategy',
       name: 'Estrategia de Marca Unificada',
@@ -93,7 +93,7 @@ Genera una respuesta en español estructurada en máximo 4 párrafos que conteng
 
   await prisma.promptTemplate.upsert({
     where: { key: 'dealer-strategy' },
-    update: {},
+    update: { content: dealerPrompt },
     create: {
       key: 'dealer-strategy',
       name: 'Estrategia Regionalizada para Dealer',
@@ -135,7 +135,7 @@ Mantén un tono profesional, estratégico, altamente detallado y accionado por d
 
   await prisma.promptTemplate.upsert({
     where: { key: 'deep-research' },
-    update: {},
+    update: { content: deepResearchPrompt },
     create: {
       key: 'deep-research',
       name: 'Investigación de Mercado (Deep Research)',
@@ -146,7 +146,7 @@ Mantén un tono profesional, estratégico, altamente detallado y accionado por d
 
   await prisma.promptTemplate.upsert({
     where: { key: 'image-banner' },
-    update: {},
+    update: { content: bannerPromptText },
     create: {
       key: 'image-banner',
       name: 'Banner Promocional de Portada',
