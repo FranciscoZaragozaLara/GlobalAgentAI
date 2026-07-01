@@ -59,27 +59,28 @@ export class ResearchStorageService {
   }
 
   // --- Tier 4: Final Executive PDF Cache ---
-  getPdfS3Key(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): string {
+  getPdfS3Key(month: string, year: number, agencyName: string, researchMode: string = 'Basica', generateImages: boolean = true): string {
     const cleanAgency = agencyName.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
     const cleanMode = researchMode.toLowerCase().trim();
-    const filename = `reporte-ejecutivo-${cleanMode}-${cleanAgency}-${month.toLowerCase().trim().replace(/\s+/g, '_')}-${year}.pdf`;
+    const suffix = generateImages ? '' : '-no-images';
+    const filename = `reporte-ejecutivo-${cleanMode}-${cleanAgency}-${month.toLowerCase().trim().replace(/\s+/g, '_')}-${year}${suffix}.pdf`;
     return `reports/${filename}`;
   }
 
-  async hasPdfReport(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): Promise<boolean> {
-    const key = this.getPdfS3Key(month, year, agencyName, researchMode);
+  async hasPdfReport(month: string, year: number, agencyName: string, researchMode: string = 'Basica', generateImages: boolean = true): Promise<boolean> {
+    const key = this.getPdfS3Key(month, year, agencyName, researchMode, generateImages);
     const exists = await this.s3Service.fileExists(key);
-    this.logger.log(`Checking S3 Final Executive PDF Cache (${researchMode}) for ${agencyName} (${month} ${year}): ${exists ? 'HIT' : 'MISS'}`);
+    this.logger.log(`Checking S3 Final Executive PDF Cache (${researchMode}) for ${agencyName} (${month} ${year}) (Images: ${generateImages}): ${exists ? 'HIT' : 'MISS'}`);
     return exists;
   }
 
-  async getPdfReport(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): Promise<Buffer> {
-    const key = this.getPdfS3Key(month, year, agencyName, researchMode);
+  async getPdfReport(month: string, year: number, agencyName: string, researchMode: string = 'Basica', generateImages: boolean = true): Promise<Buffer> {
+    const key = this.getPdfS3Key(month, year, agencyName, researchMode, generateImages);
     return await this.s3Service.downloadFile(key);
   }
 
-  async savePdfReport(month: string, year: number, agencyName: string, pdfBuffer: Buffer, researchMode: string = 'Basica'): Promise<void> {
-    const key = this.getPdfS3Key(month, year, agencyName, researchMode);
+  async savePdfReport(month: string, year: number, agencyName: string, pdfBuffer: Buffer, researchMode: string = 'Basica', generateImages: boolean = true): Promise<void> {
+    const key = this.getPdfS3Key(month, year, agencyName, researchMode, generateImages);
     await this.s3Service.uploadFile(key, pdfBuffer, 'application/pdf');
     this.logger.log(`Final executive PDF report cached to S3: ${key}`);
   }

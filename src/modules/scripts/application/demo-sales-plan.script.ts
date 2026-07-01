@@ -151,9 +151,9 @@ Este documento detalla las tendencias del consumidor, temporalidades y tácticas
       // --- FLOW B: TRIPLE REPORT FLOW (MAIN PDF, DEEP RESEARCH, CAMPAIGN IMAGES CATALOG) ---
 
       // --- COMPROBAR NIVEL 4: FINAL EXECUTIVE PDF CACHE ---
-      if (generateImages && await this.researchStorageService.hasPdfReport(monthName, queryYear, agencyName, researchMode)) {
+      if (await this.researchStorageService.hasPdfReport(monthName, queryYear, agencyName, researchMode, generateImages)) {
         this.logger.log(`Final PDF Report for ${agencyName} (${monthName} ${queryYear}) found in cache (Nivel 4 HIT). Loading from disk...`);
-        const pdfBuffer = await this.researchStorageService.getPdfReport(monthName, queryYear, agencyName, researchMode);
+        const pdfBuffer = await this.researchStorageService.getPdfReport(monthName, queryYear, agencyName, researchMode, generateImages);
 
         // Get research markdown for attachment 1
         const researchMd = (await this.researchStorageService.hasResearch(monthName, queryYear, researchMode))
@@ -219,7 +219,7 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
               status: 'SUCCESS',
               executionTime,
               researchS3Key: this.researchStorageService.getResearchS3Key(monthName, queryYear, researchMode),
-              pdfS3Key: this.researchStorageService.getPdfS3Key(monthName, queryYear, agencyName, researchMode),
+              pdfS3Key: this.researchStorageService.getPdfS3Key(monthName, queryYear, agencyName, researchMode, generateImages),
               imagesS3Key: this.researchStorageService.getImagesPdfS3Key(monthName, queryYear, agencyName, researchMode),
             },
           }).catch(dbErr => this.logger.error(`Failed to save execution log to DB: ${dbErr.message}`));
@@ -407,13 +407,11 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
       );
       this.logger.log('Executive PDF successfully generated.');
 
-      // Save to Nivel 4 cache ONLY if all images were successfully resolved/generated and image generation is enabled
-      if (generateImages && !anyImageGenerationFailed) {
-        await this.researchStorageService.savePdfReport(monthName, queryYear, agencyName, pdfBuffer, researchMode);
-      } else if (!generateImages) {
-        this.logger.log('Skipping Nivel 4 PDF Cache write because image generation is disabled (generateImages = false).');
+      // Save to S3 (caching it with or without images dynamically)
+      if (!anyImageGenerationFailed) {
+        await this.researchStorageService.savePdfReport(monthName, queryYear, agencyName, pdfBuffer, researchMode, generateImages);
       } else {
-        this.logger.warn(`Skipping Nivel 4 PDF Cache write because one or more ad images failed to generate. Next execution will retry.`);
+        this.logger.warn(`Skipping S3 PDF upload because one or more ad images failed to generate. Next execution will retry.`);
       }
 
       // Build concise 2-paragraph email body
@@ -475,7 +473,7 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
             status: 'SUCCESS',
             executionTime,
             researchS3Key: this.researchStorageService.getResearchS3Key(monthName, queryYear, researchMode),
-            pdfS3Key: this.researchStorageService.getPdfS3Key(monthName, queryYear, agencyName, researchMode),
+            pdfS3Key: this.researchStorageService.getPdfS3Key(monthName, queryYear, agencyName, researchMode, generateImages),
             imagesS3Key: imagesPdfBuffer ? this.researchStorageService.getImagesPdfS3Key(monthName, queryYear, agencyName, researchMode) : null,
           },
         });
@@ -535,10 +533,8 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
               );
 
               // 5. Upload PDF report to S3
-              if (generateImages) {
-                await this.researchStorageService.savePdfReport(monthName, queryYear, distName, dealerPdfBuffer, researchMode);
-              }
-              const dealerPdfS3Key = this.researchStorageService.getPdfS3Key(monthName, queryYear, distName, researchMode);
+              await this.researchStorageService.savePdfReport(monthName, queryYear, distName, dealerPdfBuffer, researchMode, generateImages);
+              const dealerPdfS3Key = this.researchStorageService.getPdfS3Key(monthName, queryYear, distName, researchMode, generateImages);
 
               // 6. Save DealerExecutionLog in DB
               const dealerEndTime = performance.now();
