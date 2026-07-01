@@ -110,8 +110,8 @@ Esta marca tiene menos de 2 años en el mercado y muchas de sus más de 30 agenc
 
 Instrucciones de investigación y análisis:
 1. **Tendencias del Consumidor en México (Trimestre a futuro):**
-   - Identifica y analiza las tendencias macro y microeconómicas que afectarán la compra de vehículos nuevos y seminuevos en los próximos 3 meses en México (ej. tasas de interés, inflación, disponibilidad de inventario).
-   - Analiza el interés de búsqueda y tendencias en el segmento de SUVs familiares, SUVs compactas y crossovers de origen chino.
+   - Identifica y analiza las tendencias macro y microeconómicas que afectarán la compra de vehículos nuevos y seminuevos en los próximos 3 meses en México (ej. tasas de interés, inflación, disponibilidad de inventario). Debes incluir al menos 3 métricas económicas reales y actuales (ej. tasa de referencia de Banxico, inflación mensual actual del INEGI, o cifras de ventas del sector según AMIA/INEGI).
+   - Analiza el interés de búsqueda y tendencias en el segmento de SUVs familiares, SUVs compactas y crossovers de origen chino. Compara el posicionamiento y las ofertas recientes de Jetour/Soueast frente a sus competidores chinos directos (ej. MG, Omoda, Chirey, BYD), de igual manera considera un Benchmark con marcas consolidadas en México como Chevrolet, Nissan, Toyota, Honda, Kia.
 
 2. **Temporalidades, Fechas Especiales y Campañas de Moda:**
    - Detalla las fechas comerciales, festividades, eventos de la industria o hitos culturales que ocurrirán en los próximos 3 meses en México (ej. Buen Fin, Regreso a Clases, Hot Sale, Fiestas Patrias, Vacaciones, etc., según corresponda a {{MONTH_NAME}}).
