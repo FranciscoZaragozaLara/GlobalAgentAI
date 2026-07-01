@@ -159,6 +159,7 @@ export default function Dashboard() {
   const [researchMode, setResearchMode] = useState("Basica");
   const [reportMode, setReportMode] = useState("Triple");
   const [generateImages, setGenerateImages] = useState(true);
+  const [selectedScript, setSelectedScript] = useState("demo-sales-plan");
 
   // Filter states
   const [globalFilter, setGlobalFilter] = useState("");
@@ -193,7 +194,7 @@ export default function Dashboard() {
     setSuccessMsg(null);
 
     try {
-      const res = await fetch("http://localhost:3000/api/v1/scripts/demo-sales-plan/execute", {
+      const res = await fetch(`http://localhost:3000/api/v1/scripts/${selectedScript}/execute`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -580,6 +581,41 @@ export default function Dashboard() {
 
                 <form onSubmit={handleExecute} className="space-y-4">
                   
+                  {/* Tipo de Proceso/Estrategia */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">Tipo de Proceso</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedScript("demo-sales-plan");
+                          setAgencyName("Jetour Soueast Dealer Demo");
+                        }}
+                        className={`py-2 px-3 rounded text-xs font-bold transition-all border cursor-pointer ${
+                          selectedScript === "demo-sales-plan"
+                            ? "bg-indigo-600/15 border-indigo-500/50 text-indigo-300"
+                            : "bg-zinc-950/60 border-zinc-900/80 text-zinc-400 hover:text-zinc-300"
+                        }`}
+                      >
+                        Ventas & Marketing
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedScript("demo-aftersales-plan");
+                          setAgencyName("Jetour Soueast Posventa Demo");
+                        }}
+                        className={`py-2 px-3 rounded text-xs font-bold transition-all border cursor-pointer ${
+                          selectedScript === "demo-aftersales-plan"
+                            ? "bg-indigo-600/15 border-indigo-500/50 text-indigo-300"
+                            : "bg-zinc-950/60 border-zinc-900/80 text-zinc-400 hover:text-zinc-300"
+                        }`}
+                      >
+                        Servicio & Posventa
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Target Agency */}
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Agencia Corporativa</label>
