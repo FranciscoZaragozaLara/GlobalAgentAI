@@ -8,26 +8,27 @@ export class ResearchStorageService {
   constructor(private readonly s3Service: S3Service) {}
 
   // --- Tier 1: Deep Research Cache ---
-  getResearchS3Key(month: string, year: number, researchMode: string = 'Basica'): string {
+  getResearchS3Key(month: string, year: number, researchMode: string = 'Basica', processType: string = 'sales'): string {
     const cleanMode = researchMode.toLowerCase().trim();
-    const filename = `deep-research-${cleanMode}-${month.toLowerCase().trim().replace(/\s+/g, '_')}-${year}.md`;
+    const prefix = processType === 'aftersales' ? 'aftersales-deep-research' : 'deep-research';
+    const filename = `${prefix}-${cleanMode}-${month.toLowerCase().trim().replace(/\s+/g, '_')}-${year}.md`;
     return `research/${filename}`;
   }
 
-  async hasResearch(month: string, year: number, researchMode: string = 'Basica'): Promise<boolean> {
-    const key = this.getResearchS3Key(month, year, researchMode);
+  async hasResearch(month: string, year: number, researchMode: string = 'Basica', processType: string = 'sales'): Promise<boolean> {
+    const key = this.getResearchS3Key(month, year, researchMode, processType);
     const exists = await this.s3Service.fileExists(key);
-    this.logger.log(`Checking S3 Deep Research Cache (${researchMode}) for ${month} ${year}: ${exists ? 'HIT' : 'MISS'}`);
+    this.logger.log(`Checking S3 Deep Research Cache (${researchMode}) for ${month} ${year} (Type: ${processType}): ${exists ? 'HIT' : 'MISS'}`);
     return exists;
   }
 
-  async getResearch(month: string, year: number, researchMode: string = 'Basica'): Promise<string> {
-    const key = this.getResearchS3Key(month, year, researchMode);
+  async getResearch(month: string, year: number, researchMode: string = 'Basica', processType: string = 'sales'): Promise<string> {
+    const key = this.getResearchS3Key(month, year, researchMode, processType);
     return await this.s3Service.downloadFileAsString(key);
   }
 
-  async saveResearch(month: string, year: number, markdownContent: string, researchMode: string = 'Basica'): Promise<void> {
-    const key = this.getResearchS3Key(month, year, researchMode);
+  async saveResearch(month: string, year: number, markdownContent: string, researchMode: string = 'Basica', processType: string = 'sales'): Promise<void> {
+    const key = this.getResearchS3Key(month, year, researchMode, processType);
     await this.s3Service.uploadFile(key, markdownContent, 'text/markdown; charset=utf-8');
     this.logger.log(`Research report cached to S3: ${key}`);
   }

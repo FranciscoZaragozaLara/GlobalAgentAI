@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { BaseScript } from './base-script';
 import { DemoSalesPlanScript } from './demo-sales-plan.script';
+import { DemoAftersalesPlanScript } from './demo-aftersales-plan.script';
 import { ScriptResult } from '../domain/script.types';
 import { PrismaService } from '../../database/prisma.service';
 import { ResearchStorageService } from '../../gemini/application/research-storage.service';
@@ -11,11 +12,13 @@ export class ScriptRunnerService {
 
   constructor(
     private readonly demoSalesPlanScript: DemoSalesPlanScript,
+    private readonly demoAftersalesPlanScript: DemoAftersalesPlanScript,
     private readonly prisma: PrismaService,
     private readonly researchStorageService: ResearchStorageService,
   ) {
     // Register available scripts
     this.registerScript(this.demoSalesPlanScript);
+    this.registerScript(this.demoAftersalesPlanScript);
   }
 
   private registerScript(script: BaseScript) {

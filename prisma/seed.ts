@@ -133,6 +133,45 @@ Mantén un tono profesional, estratégico, altamente detallado y accionado por d
 
   const bannerPromptText = `A professional, wide-angle banner photo showing the modern showroom of a Jetour and Soueast car dealership in Mexico featuring their latest SUV models in a premium neighborhood during {{MONTH_NAME}}. The atmosphere is upscale and clean, with local Mexican middle-class buyers exploring the cars. Clean composition, high-end commercial automotive photography style, warm natural sunset lighting, 8k resolution. No Asian text, no Asian characters, and no Asian or oriental people.`;
 
+  const aftersalesDeepResearchPrompt = `Eres un Consultor Senior de Cadena de Suministro, Logística y Posventa Automotriz, experto en el mercado mexicano y especializado en el ecosistema de marcas asiáticas.
+Tu objetivo es realizar una investigación web profunda (Deep Research) y generar un Reporte de Contexto Externo, Macroeconomía e Inteligencia Competitiva de Posventa para la marca de automóviles Jetour y Soueast en México, correspondiente al periodo de: {{MONTH_NAME}} de {{YEAR}}.
+
+Nota contextual: Este reporte servirá como "Base de Conocimientos" para que otro agente cruce posteriormente esta información macroeconómica con los datos internos de los talleres (órdenes de servicio y refacciones).
+
+Instrucciones de investigación web y análisis:
+
+1. **Estrategia Pública y Promesas de Marca (Jetour):**
+   - Identifica y detalla qué estrategias conocidas de manera pública (comunicados de prensa, entrevistas a directivos, anuncios oficiales) ha compartido Jetour México para garantizar el suministro de refacciones en su red de distribuidores y asegurar un buen nivel de servicio de posventa.
+
+2. **Logística y Riesgos de Suministro para Marcas Chinas:**
+   - Analiza las condiciones actuales de la cadena de suministro desde Asia hacia México.
+   - Identifica qué riesgos actuales y a corto plazo están presentes en el proceso de logística, importación y suministro de refacciones de autopartes específicamente para marcas automotrices de origen chino operando en México. 
+   - **Debes extraer al menos 2 indicadores numéricos logísticos reales y actuales obtenidos de tu búsqueda web (ej: estatus del Shanghai Containerized Freight Index (SCFI), tiempos promedio de despacho en los puertos de Manzanillo o Lázaro Cárdenas, o incrementos porcentuales de costos en fletes marítimos).**
+
+3. **Macroeconomía y Tendencias de Talleres en México:**
+   - Analiza indicadores financieros clave del mes en curso que impacten los costos (ej. tipo de cambio USD/MXN y CNY/MXN, inflación en autopartes).
+   - Identifica tendencias generales en la industria de talleres en México (costos de mano de obra, escasez de técnicos, etc.).
+   - **Incluye de forma obligatoria al menos 2 datos económicos oficiales vigentes en México (ej: inflación general o sectorial reportada por el INEGI, o la tasa de referencia bancaria de Banxico).**
+
+4. **Percepción Pública y Benchmark de Calidad (Jetour vs. Mercado):**
+   - Evalúa cuál es la percepción pública y el sentimiento del consumidor actual sobre el nivel de calidad del servicio de posventa y disponibilidad de piezas de Jetour.
+   - Realiza un benchmark comparando directamente la percepción de Jetour contra otras marcas de origen chino (ej. MG, Omoda, Chirey, BYD) y contra marcas tradicionales consolidadas en el país (ej. Nissan, Toyota, Volkswagen).
+
+Genera tu respuesta en formato Markdown estructurado exactamente con las siguientes secciones:
+
+🌍 INVESTIGACIÓN EXTERNA E INTELIGENCIA COMPETITIVA: POSVENTA - {{MONTH_NAME}} {{YEAR}}
+1. ESTRATEGIA PÚBLICA DE JETOUR PARA GARANTIZAR REFACCIONES Y SERVICIO
+2. RIESGOS ACTUALES EN LA CADENA DE SUMINISTRO PARA MARCAS CHINAS
+3. MACROECONOMÍA Y TENDENCIAS EN LA INDUSTRIA DE TALLERES EN MÉXICO
+4. PERCEPCIÓN PÚBLICA: JETOUR VS. MARCAS CHINAS VS. MARCAS CONSOLIDADAS
+5. CONCLUSIONES Y AMENAZAS EXTERNAS CLAVE PARA LA RED DE DISTRIBUIDORES ESTE MES
+
+Tono y Directrices de Redacción del Reporte:
+- Al redactar el contenido de las secciones, debes mantener un tono consultivo, de recomendación y asesoría. No utilices verbos imperativos ni des órdenes directas al lector (ej. en lugar de escribir "Implementen esta estrategia" o "Tienen que vigilar los costos", debes escribir "Se sugiere evaluar la viabilidad de esta estrategia" o "Es recomendable mantener un monitoreo sobre los costos").
+- El contenido debe ser objetivo y basado estrictamente en datos actuales encontrados en tu búsqueda web mediante Search Grounding. Incluye cifras, declaraciones reales, porcentajes y referencias a noticias o reportes recientes del sector. 
+- **Queda estrictamente prohibido utilizar marcadores de posición, corchetes vacíos o textos plantilla (como "[Insertar datos aquí]" o "[Noticia reciente]"). Todo dato en el reporte debe ser real y completamente redactado en texto fluido.**
+- No inventes datos internos de ventas ni asumas el rendimiento operativo de las agencias.`;
+
   await prisma.promptTemplate.upsert({
     where: { key: 'deep-research' },
     update: { content: deepResearchPrompt },
@@ -152,6 +191,17 @@ Mantén un tono profesional, estratégico, altamente detallado y accionado por d
       name: 'Banner Promocional de Portada',
       description: 'Instrucciones para generar el banner visual del reporte mensual automotriz.',
       content: bannerPromptText,
+    },
+  });
+
+  await prisma.promptTemplate.upsert({
+    where: { key: 'aftersales-deep-research' },
+    update: { content: aftersalesDeepResearchPrompt },
+    create: {
+      key: 'aftersales-deep-research',
+      name: 'Investigación Posventa (Deep Research)',
+      description: 'Prompt de entrada del agente para recopilar tendencias externas de posventa, fletes marítimos, suministro de refacciones y benchmark.',
+      content: aftersalesDeepResearchPrompt,
     },
   });
 
