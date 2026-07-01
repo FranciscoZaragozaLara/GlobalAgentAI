@@ -85,8 +85,14 @@ export class GeminiService {
         interactionId = interaction.id;
         this.logger.log(`Interaction created successfully. ID: ${interaction.id}. Polling for status...`);
 
+        let attempts = 0;
+        const maxAttempts = 90; // 90 * 10 seconds = 15 minutes max
         while (interaction.status !== 'completed' && interaction.status !== 'failed') {
-          this.logger.log(`Agent task status: ${interaction.status}. Waiting 10 seconds before polling...`);
+          attempts++;
+          if (attempts > maxAttempts) {
+            throw new Error(`Deep Research execution timed out after 15 minutes (Interaction ID: ${interaction.id}).`);
+          }
+          this.logger.log(`Agent task status: ${interaction.status} (Attempt ${attempts}/${maxAttempts}). Waiting 10 seconds before polling...`);
           await new Promise((resolve) => setTimeout(resolve, 10000));
           interaction = await client.interactions.get(interaction.id);
         }
