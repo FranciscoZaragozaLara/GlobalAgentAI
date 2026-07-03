@@ -51,6 +51,9 @@ interface ExecutionLog {
   pptxUrl?: string | null;
   podcastUrl?: string | null;
   podcastScriptUrl?: string | null;
+  pptxResearchUrl?: string | null;
+  podcastResearchUrl?: string | null;
+  podcastResearchScriptUrl?: string | null;
   dealerCount?: number;
 }
 
@@ -164,10 +167,45 @@ export default function Dashboard() {
 
   const [researchMode, setResearchMode] = useState("Basica");
   const [reportMode, setReportMode] = useState("Triple");
+  const [generateExecutiveReport, setGenerateExecutiveReport] = useState(true);
   const [generateImages, setGenerateImages] = useState(true);
+  const [generateDealers, setGenerateDealers] = useState(false);
+  const [dealersCount, setDealersCount] = useState(5);
   const [generateSlides, setGenerateSlides] = useState(false);
   const [generatePodcast, setGeneratePodcast] = useState(false);
+  const [generateResearchSlides, setGenerateResearchSlides] = useState(false);
+  const [generateResearchPodcast, setGenerateResearchPodcast] = useState(false);
   const [selectedScript, setSelectedScript] = useState("demo-sales-plan");
+
+  const handleImagesChange = (val: boolean) => {
+    setGenerateImages(val);
+    if (val) setGenerateExecutiveReport(true);
+  };
+
+  const handleDealersChange = (val: boolean) => {
+    setGenerateDealers(val);
+    if (val) setGenerateExecutiveReport(true);
+  };
+
+  const handleSlidesChange = (val: boolean) => {
+    setGenerateSlides(val);
+    if (val) setGenerateExecutiveReport(true);
+  };
+
+  const handlePodcastChange = (val: boolean) => {
+    setGeneratePodcast(val);
+    if (val) setGenerateExecutiveReport(true);
+  };
+
+  const handleExecutiveReportChange = (val: boolean) => {
+    if (!val) {
+      setGenerateImages(false);
+      setGenerateDealers(false);
+      setGenerateSlides(false);
+      setGeneratePodcast(false);
+    }
+    setGenerateExecutiveReport(val);
+  };
 
   // Filter states
   const [globalFilter, setGlobalFilter] = useState("");
@@ -213,9 +251,14 @@ export default function Dashboard() {
           monthName,
           researchMode,
           reportMode,
+          generateExecutiveReport,
           generateImages,
+          generateDealers,
+          dealersCount,
           generateSlides,
           generatePodcast,
+          generateResearchSlides,
+          generateResearchPodcast,
         }),
       });
 
@@ -444,7 +487,46 @@ export default function Dashboard() {
                   title="Descargar Audio del Podcast (.MP3)"
                 >
                   <Download className="w-3.5 h-3.5 text-violet-400" />
-                  Audio
+                  Audio (Ejecutivo)
+                </a>
+              )}
+
+              {log.pptxResearchUrl && (
+                <a
+                  href={log.pptxResearchUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-200 transition-all border border-zinc-800"
+                  title="Descargar Presentación de Investigación Slides (.PPTX)"
+                >
+                  <Presentation className="w-3.5 h-3.5 text-pink-400" />
+                  Slides (Research)
+                </a>
+              )}
+
+              {log.podcastResearchScriptUrl && (
+                <a
+                  href={log.podcastResearchScriptUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-200 transition-all border border-zinc-800"
+                  title="Descargar Guion del Podcast de Investigación (.JSON)"
+                >
+                  <FileText className="w-3.5 h-3.5 text-teal-400" />
+                  Guion (Research)
+                </a>
+              )}
+
+              {log.podcastResearchUrl && (
+                <a
+                  href={log.podcastResearchUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-200 transition-all border border-zinc-800"
+                  title="Descargar Audio del Podcast de Investigación (.MP3)"
+                >
+                  <Download className="w-3.5 h-3.5 text-orange-400" />
+                  Audio (Research)
                 </a>
               )}
 
@@ -464,11 +546,27 @@ export default function Dashboard() {
                   <div className="flex items-center gap-1.5">
                     <Headphones className="w-3.5 h-3.5 text-violet-400" />
                     <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
-                      Reproducir Podcast
+                      Reproducir Podcast (Ejecutivo)
                     </span>
                   </div>
                   <audio
                     src={log.podcastUrl}
+                    controls
+                    className="w-full h-8 rounded bg-zinc-900 border border-zinc-800/80 px-1 py-0.5 text-xs opacity-90 outline-none"
+                  />
+                </div>
+              )}
+
+              {log.podcastResearchUrl && (
+                <div className="flex flex-col gap-1 p-2 rounded bg-zinc-950 border border-zinc-900/80 w-full mt-2">
+                  <div className="flex items-center gap-1.5">
+                    <Headphones className="w-3.5 h-3.5 text-orange-400" />
+                    <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
+                      Reproducir Podcast (Research)
+                    </span>
+                  </div>
+                  <audio
+                    src={log.podcastResearchUrl}
                     controls
                     className="w-full h-8 rounded bg-zinc-900 border border-zinc-800/80 px-1 py-0.5 text-xs opacity-90 outline-none"
                   />
@@ -784,61 +882,160 @@ export default function Dashboard() {
                     </p>
                   </div>
 
-                  {/* Generate Images Toggle */}
-                  <div className="flex items-center justify-between p-2.5 rounded bg-zinc-950/60 border border-zinc-900/80">
-                    <div className="space-y-0.5">
-                      <label className="text-xs font-bold text-zinc-300 uppercase tracking-wider block cursor-pointer select-none" htmlFor="generateImages">
-                        Generar Imágenes AI
-                      </label>
-                      <span className="text-[9px] text-zinc-550 leading-relaxed font-light block">
-                        Usa Imagen 4.0 para crear banners y anuncios
-                      </span>
+                  {/* Artefactos a Generar Checklist */}
+                  <div className="space-y-3 pt-2">
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">Listado de Artefactos a Generar</label>
+                    
+                    {/* A) Reporte Ejecutivo PDF */}
+                    <div className="flex items-center justify-between p-2.5 rounded bg-zinc-950/60 border border-zinc-900/80">
+                      <div className="space-y-0.5">
+                        <label className="text-xs font-bold text-zinc-300 uppercase tracking-wider block cursor-pointer select-none" htmlFor="generateExecutiveReport">
+                          A) Reporte Ejecutivo PDF
+                        </label>
+                        <span className="text-[9px] text-zinc-550 leading-relaxed font-light block">
+                          Reporte principal consolidado en formato PDF
+                        </span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        id="generateExecutiveReport"
+                        checked={generateExecutiveReport}
+                        onChange={(e) => handleExecutiveReportChange(e.target.checked)}
+                        className="w-4 h-4 rounded border-zinc-800 text-indigo-650 focus:ring-indigo-500/20 bg-zinc-950 cursor-pointer"
+                      />
                     </div>
-                    <input
-                      type="checkbox"
-                      id="generateImages"
-                      checked={generateImages}
-                      onChange={(e) => setGenerateImages(e.target.checked)}
-                      className="w-4 h-4 rounded border-zinc-800 text-indigo-650 focus:ring-indigo-500/20 bg-zinc-950 cursor-pointer"
-                    />
-                  </div>
 
-                  {/* Generate Slides Toggle */}
-                  <div className="flex items-center justify-between p-2.5 rounded bg-zinc-950/60 border border-zinc-900/80">
-                    <div className="space-y-0.5">
-                      <label className="text-xs font-bold text-zinc-300 uppercase tracking-wider block cursor-pointer select-none" htmlFor="generateSlides">
-                        Generar Slides PPTX
-                      </label>
-                      <span className="text-[9px] text-zinc-550 leading-relaxed font-light block">
-                        Estructura y exporta el reporte a PowerPoint
-                      </span>
-                    </div>
-                    <input
-                      type="checkbox"
-                      id="generateSlides"
-                      checked={generateSlides}
-                      onChange={(e) => setGenerateSlides(e.target.checked)}
-                      className="w-4 h-4 rounded border-zinc-800 text-indigo-650 focus:ring-indigo-500/20 bg-zinc-950 cursor-pointer"
-                    />
-                  </div>
+                    {/* Sub-artefactos (indentados) */}
+                    <div className="pl-4 space-y-2 border-l border-zinc-900">
+                      {/* A1) Imágenes AI */}
+                      <div className="flex items-center justify-between p-2 rounded bg-zinc-950/40 border border-zinc-900/40">
+                        <div className="space-y-0.5">
+                          <label className="text-xs font-semibold text-zinc-400 block cursor-pointer select-none" htmlFor="generateImages">
+                            A1) Imágenes AI
+                          </label>
+                          <span className="text-[9px] text-zinc-600 leading-relaxed font-light block">
+                            Banners y anuncios visuales generados con IA (Requiere PDF)
+                          </span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          id="generateImages"
+                          checked={generateImages}
+                          onChange={(e) => handleImagesChange(e.target.checked)}
+                          className="w-4 h-4 rounded border-zinc-800 text-indigo-650 focus:ring-indigo-500/20 bg-zinc-950 cursor-pointer"
+                        />
+                      </div>
 
-                  {/* Generate Podcast Toggle */}
-                  <div className="flex items-center justify-between p-2.5 rounded bg-zinc-950/60 border border-zinc-900/80">
-                    <div className="space-y-0.5">
-                      <label className="text-xs font-bold text-zinc-300 uppercase tracking-wider block cursor-pointer select-none" htmlFor="generatePodcast">
-                        Generar Podcast de Audio
-                      </label>
-                      <span className="text-[9px] text-zinc-550 leading-relaxed font-light block">
-                        Crea un debate conversacional estructurado con SSML y Google TTS
-                      </span>
+                      {/* A2) Reportes Dealers */}
+                      <div className="p-2 rounded bg-zinc-950/40 border border-zinc-900/40 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <label className="text-xs font-semibold text-zinc-400 block cursor-pointer select-none" htmlFor="generateDealers">
+                              A2) Reportes Dealers
+                            </label>
+                            <span className="text-[9px] text-zinc-600 leading-relaxed font-light block">
+                              Reportes individuales para distribuidores (Requiere PDF)
+                            </span>
+                          </div>
+                          <input
+                            type="checkbox"
+                            id="generateDealers"
+                            checked={generateDealers}
+                            onChange={(e) => handleDealersChange(e.target.checked)}
+                            className="w-4 h-4 rounded border-zinc-800 text-indigo-650 focus:ring-indigo-500/20 bg-zinc-950 cursor-pointer"
+                          />
+                        </div>
+                        {generateDealers && (
+                          <div className="flex items-center gap-2 pt-1 border-t border-zinc-900/45">
+                            <span className="text-[10px] text-zinc-500">Cantidad (1-100):</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={100}
+                              value={dealersCount}
+                              onChange={(e) => setDealersCount(Math.min(100, Math.max(1, parseInt(e.target.value) || 1)))}
+                              className="w-20 p-1 bg-zinc-950 border border-zinc-800 rounded text-xs text-zinc-300 focus:outline-none"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* A3) Slides PPTX (Reporte Ejecutivo) */}
+                      <div className="flex items-center justify-between p-2 rounded bg-zinc-950/40 border border-zinc-900/40">
+                        <div className="space-y-0.5">
+                          <label className="text-xs font-semibold text-zinc-400 block cursor-pointer select-none" htmlFor="generateSlides">
+                            A3) Slides PPTX (Reporte Ejecutivo)
+                          </label>
+                          <span className="text-[9px] text-zinc-600 leading-relaxed font-light block">
+                            Presentación de PowerPoint del Reporte Ejecutivo
+                          </span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          id="generateSlides"
+                          checked={generateSlides}
+                          onChange={(e) => handleSlidesChange(e.target.checked)}
+                          className="w-4 h-4 rounded border-zinc-800 text-indigo-650 focus:ring-indigo-500/20 bg-zinc-950 cursor-pointer"
+                        />
+                      </div>
+
+                      {/* A4) Podcast Audio (Reporte Ejecutivo) */}
+                      <div className="flex items-center justify-between p-2 rounded bg-zinc-950/40 border border-zinc-900/40">
+                        <div className="space-y-0.5">
+                          <label className="text-xs font-semibold text-zinc-400 block cursor-pointer select-none" htmlFor="generatePodcast">
+                            A4) Podcast Audio (Reporte Ejecutivo)
+                          </label>
+                          <span className="text-[9px] text-zinc-600 leading-relaxed font-light block">
+                            Genera guion y audio debate del Reporte Ejecutivo
+                          </span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          id="generatePodcast"
+                          checked={generatePodcast}
+                          onChange={(e) => handlePodcastChange(e.target.checked)}
+                          className="w-4 h-4 rounded border-zinc-800 text-indigo-650 focus:ring-indigo-500/20 bg-zinc-950 cursor-pointer"
+                        />
+                      </div>
                     </div>
-                    <input
-                      type="checkbox"
-                      id="generatePodcast"
-                      checked={generatePodcast}
-                      onChange={(e) => setGeneratePodcast(e.target.checked)}
-                      className="w-4 h-4 rounded border-zinc-800 text-indigo-650 focus:ring-indigo-500/20 bg-zinc-950 cursor-pointer"
-                    />
+
+                    {/* B) Slides PPTX (Research) */}
+                    <div className="flex items-center justify-between p-2.5 rounded bg-zinc-950/60 border border-zinc-900/80">
+                      <div className="space-y-0.5">
+                        <label className="text-xs font-bold text-zinc-300 uppercase tracking-wider block cursor-pointer select-none" htmlFor="generateResearchSlides">
+                          B) Slides PPTX (Research)
+                        </label>
+                        <span className="text-[9px] text-zinc-550 leading-relaxed font-light block">
+                          Presentación PPTX basada en el Deep Research intermedio
+                        </span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        id="generateResearchSlides"
+                        checked={generateResearchSlides}
+                        onChange={(e) => setGenerateResearchSlides(e.target.checked)}
+                        className="w-4 h-4 rounded border-zinc-800 text-indigo-650 focus:ring-indigo-500/20 bg-zinc-950 cursor-pointer"
+                      />
+                    </div>
+
+                    {/* C) Podcast Audio (Research) */}
+                    <div className="flex items-center justify-between p-2.5 rounded bg-zinc-950/60 border border-zinc-900/80">
+                      <div className="space-y-0.5">
+                        <label className="text-xs font-bold text-zinc-300 uppercase tracking-wider block cursor-pointer select-none" htmlFor="generateResearchPodcast">
+                          C) Podcast Audio (Research)
+                        </label>
+                        <span className="text-[9px] text-zinc-550 leading-relaxed font-light block">
+                          Podcast debate completo basado directamente en el Deep Research
+                        </span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        id="generateResearchPodcast"
+                        checked={generateResearchPodcast}
+                        onChange={(e) => setGenerateResearchPodcast(e.target.checked)}
+                        className="w-4 h-4 rounded border-zinc-800 text-indigo-650 focus:ring-indigo-500/20 bg-zinc-950 cursor-pointer"
+                      />
+                    </div>
                   </div>
 
                   {/* Submit Button */}

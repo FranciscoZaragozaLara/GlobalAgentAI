@@ -202,6 +202,78 @@ export class ResearchStorageService {
     this.logger.log(`Podcast JSON script cached to S3: ${key}`);
   }
 
+  // --- Tier 4f: Research Slides PowerPoint Cache ---
+  getPptxResearchS3Key(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): string {
+    const cleanAgency = agencyName.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    const cleanMode = researchMode.toLowerCase().trim();
+    const filename = `presentacion-slides-research-${cleanMode}-${cleanAgency}-${month.toLowerCase().trim().replace(/\s+/g, '_')}-${year}.pptx`;
+    return `reports/${filename}`;
+  }
+
+  async hasPptxResearchReport(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): Promise<boolean> {
+    const key = this.getPptxResearchS3Key(month, year, agencyName, researchMode);
+    return await this.s3Service.fileExists(key);
+  }
+
+  async getPptxResearchReport(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): Promise<Buffer> {
+    const key = this.getPptxResearchS3Key(month, year, agencyName, researchMode);
+    return await this.s3Service.downloadFile(key);
+  }
+
+  async savePptxResearchReport(month: string, year: number, agencyName: string, pptxBuffer: Buffer, researchMode: string = 'Basica'): Promise<void> {
+    const key = this.getPptxResearchS3Key(month, year, agencyName, researchMode);
+    await this.s3Service.uploadFile(key, pptxBuffer, 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+    this.logger.log(`Research Slides PowerPoint report cached to S3: ${key}`);
+  }
+
+  // --- Tier 4g: Research Podcast Audio Cache ---
+  getPodcastResearchS3Key(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): string {
+    const cleanAgency = agencyName.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    const cleanMode = researchMode.toLowerCase().trim();
+    const filename = `podcast-research-${cleanMode}-${cleanAgency}-${month.toLowerCase().trim().replace(/\s+/g, '_')}-${year}.mp3`;
+    return `reports/${filename}`;
+  }
+
+  async hasPodcastResearchReport(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): Promise<boolean> {
+    const key = this.getPodcastResearchS3Key(month, year, agencyName, researchMode);
+    return await this.s3Service.fileExists(key);
+  }
+
+  async getPodcastResearchReport(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): Promise<Buffer> {
+    const key = this.getPodcastResearchS3Key(month, year, agencyName, researchMode);
+    return await this.s3Service.downloadFile(key);
+  }
+
+  async savePodcastResearchReport(month: string, year: number, agencyName: string, audioBuffer: Buffer, researchMode: string = 'Basica'): Promise<void> {
+    const key = this.getPodcastResearchS3Key(month, year, agencyName, researchMode);
+    await this.s3Service.uploadFile(key, audioBuffer, 'audio/mpeg');
+    this.logger.log(`Research Podcast audio cached to S3: ${key}`);
+  }
+
+  // --- Tier 4h: Research Podcast Dialogue Script Cache ---
+  getPodcastResearchScriptS3Key(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): string {
+    const cleanAgency = agencyName.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    const cleanMode = researchMode.toLowerCase().trim();
+    const filename = `podcast-research-guion-${cleanMode}-${cleanAgency}-${month.toLowerCase().trim().replace(/\s+/g, '_')}-${year}.json`;
+    return `reports/${filename}`;
+  }
+
+  async hasPodcastResearchScript(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): Promise<boolean> {
+    const key = this.getPodcastResearchScriptS3Key(month, year, agencyName, researchMode);
+    return await this.s3Service.fileExists(key);
+  }
+
+  async getPodcastResearchScript(month: string, year: number, agencyName: string, researchMode: string = 'Basica'): Promise<string> {
+    const key = this.getPodcastResearchScriptS3Key(month, year, agencyName, researchMode);
+    return await this.s3Service.downloadFileAsString(key);
+  }
+
+  async savePodcastResearchScript(month: string, year: number, agencyName: string, scriptContent: string, researchMode: string = 'Basica'): Promise<void> {
+    const key = this.getPodcastResearchScriptS3Key(month, year, agencyName, researchMode);
+    await this.s3Service.uploadFile(key, scriptContent, 'application/json; charset=utf-8');
+    this.logger.log(`Research Podcast JSON script cached to S3: ${key}`);
+  }
+
   async getSignedUrl(key: string, expiresSeconds: number = 3600): Promise<string> {
     return await this.s3Service.getSignedUrl(key, expiresSeconds);
   }

@@ -55,6 +55,10 @@ export class ScriptRunnerService {
         let podcastUrl: string | null = null;
         let podcastScriptUrl: string | null = null;
 
+        let pptxResearchUrl: string | null = null;
+        let podcastResearchUrl: string | null = null;
+        let podcastResearchScriptUrl: string | null = null;
+
         if (log.researchS3Key) {
           researchUrl = await this.researchStorageService.getSignedUrl(log.researchS3Key);
         }
@@ -73,6 +77,15 @@ export class ScriptRunnerService {
         if (log.podcastScriptS3Key) {
           podcastScriptUrl = await this.researchStorageService.getSignedUrl(log.podcastScriptS3Key);
         }
+        if (log.pptxResearchS3Key) {
+          pptxResearchUrl = await this.researchStorageService.getSignedUrl(log.pptxResearchS3Key);
+        }
+        if (log.podcastResearchS3Key) {
+          podcastResearchUrl = await this.researchStorageService.getSignedUrl(log.podcastResearchS3Key);
+        }
+        if (log.podcastResearchScriptS3Key) {
+          podcastResearchScriptUrl = await this.researchStorageService.getSignedUrl(log.podcastResearchScriptS3Key);
+        }
 
         const dealerCount = await this.prisma.dealerExecutionLog.count({
           where: { parentLogId: log.id },
@@ -86,6 +99,9 @@ export class ScriptRunnerService {
           pptxUrl,
           podcastUrl,
           podcastScriptUrl,
+          pptxResearchUrl,
+          podcastResearchUrl,
+          podcastResearchScriptUrl,
           dealerCount,
         };
       })

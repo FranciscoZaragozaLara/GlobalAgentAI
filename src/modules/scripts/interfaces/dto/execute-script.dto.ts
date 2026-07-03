@@ -50,7 +50,15 @@ export class ExecuteScriptDto {
   reportMode?: string;
 
   @ApiProperty({
-    description: 'Bandera para determinar si se deben generar las imágenes de campaña en el reporte',
+    description: 'Bandera para determinar si se debe generar el Reporte Ejecutivo PDF (A)',
+    example: true,
+    required: false,
+  })
+  @IsOptional()
+  generateExecutiveReport?: boolean;
+
+  @ApiProperty({
+    description: 'Bandera para determinar si se deben generar las imágenes de campaña en el reporte (A1)',
     example: true,
     required: false,
   })
@@ -58,7 +66,23 @@ export class ExecuteScriptDto {
   generateImages?: boolean;
 
   @ApiProperty({
-    description: 'Bandera para determinar si se deben generar la presentación slide de PowerPoint del plan de trabajo',
+    description: 'Bandera para determinar si se deben generar los Reportes Dealers (A2)',
+    example: false,
+    required: false,
+  })
+  @IsOptional()
+  generateDealers?: boolean;
+
+  @ApiProperty({
+    description: 'Cantidad de dealers a procesar para el reporte regional (1 a 100) (A2)',
+    example: 5,
+    required: false,
+  })
+  @IsOptional()
+  dealersCount?: number;
+
+  @ApiProperty({
+    description: 'Bandera para determinar si se deben generar la presentación slide de PowerPoint del plan de trabajo (A3)',
     example: false,
     required: false,
   })
@@ -66,10 +90,26 @@ export class ExecuteScriptDto {
   generateSlides?: boolean;
 
   @ApiProperty({
-    description: 'Bandera para determinar si se debe generar el podcast estratégico de audio del plan de trabajo',
+    description: 'Bandera para determinar si se debe generar el podcast estratégico de audio del plan de trabajo (A4)',
     example: false,
     required: false,
   })
   @IsOptional()
   generatePodcast?: boolean;
+
+  @ApiProperty({
+    description: 'Bandera para determinar si se deben generar las Slides PPTX basadas en Research (B)',
+    example: false,
+    required: false,
+  })
+  @IsOptional()
+  generateResearchSlides?: boolean;
+
+  @ApiProperty({
+    description: 'Bandera para determinar si se debe generar el Podcast Audio basado en Research (C)',
+    example: false,
+    required: false,
+  })
+  @IsOptional()
+  generateResearchPodcast?: boolean;
 }

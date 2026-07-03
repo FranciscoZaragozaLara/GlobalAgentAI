@@ -27,6 +27,9 @@ model ExecutionLog {
   pptxS3Key     String?
   podcastS3Key  String?
   podcastScriptS3Key String?
+  pptxResearchS3Key String?
+  podcastResearchS3Key String?
+  podcastResearchScriptS3Key String?
 
   // Relación con los dealers
   dealerLogs    DealerExecutionLog[]
