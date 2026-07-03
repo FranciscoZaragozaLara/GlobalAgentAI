@@ -10,6 +10,8 @@ import { SalesDataService } from '../../external-data/application/sales-data.ser
 import { ResearchStorageService } from '../../gemini/application/research-storage.service';
 import { PromptTemplateService } from '../../gemini/application/prompt-template.service';
 import { PrismaService } from '../../database/prisma.service';
+import { PptxService } from '../../notifications/application/pptx.service';
+import { PodcastService } from '../../notifications/application/podcast.service';
 import { performance } from 'perf_hooks';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -31,6 +33,8 @@ export class DemoSalesPlanScript extends BaseScript {
     private readonly prisma: PrismaService,
     private readonly salesDataService: SalesDataService,
     private readonly promptTemplateService: PromptTemplateService,
+    private readonly pptxService: PptxService,
+    private readonly podcastService: PodcastService,
   ) {
     super();
   }
@@ -43,8 +47,10 @@ export class DemoSalesPlanScript extends BaseScript {
     const researchMode = params.researchMode || 'Basica';
     const reportMode = params.reportMode || 'Triple';
     const generateImages = params.generateImages !== undefined ? Boolean(params.generateImages) : true;
+    const generateSlides = params.generateSlides !== undefined ? Boolean(params.generateSlides) : false;
+    const generatePodcast = params.generatePodcast !== undefined ? Boolean(params.generatePodcast) : false;
     
-    this.logger.log(`Starting execute of DemoSalesPlanScript in mode [Research: ${researchMode} | Report: ${reportMode}] target email: ${emailDestination}`);
+    this.logger.log(`Starting execute of DemoSalesPlanScript in mode [Research: ${researchMode} | Report: ${reportMode} | Slides: ${generateSlides} | Podcast: ${generatePodcast}] target email: ${emailDestination}`);
     try {
       // --- PASO DE AUTENTICACIÓN A PRUEBA ---
       this.logger.log('Validating Global DMS authentication credentials...');
@@ -162,17 +168,88 @@ Este documento detalla las tendencias del consumidor, temporalidades y tácticas
 
         // Get unified report to extract image catalog and generate images PDF for attachment 3
         let imagesPdfBuffer: Buffer | undefined;
+        let unifiedReport = '';
+        if (await this.researchStorageService.hasUnifiedReport(monthName, queryYear, agencyName, researchMode)) {
+          unifiedReport = await this.researchStorageService.getUnifiedReport(monthName, queryYear, agencyName, researchMode);
+        }
+
         if (await this.researchStorageService.hasImagesPdfReport(monthName, queryYear, agencyName, researchMode)) {
           this.logger.log(`Images PDF Report found in cache (Nivel 4.5 HIT). Loading from S3...`);
           imagesPdfBuffer = await this.researchStorageService.getImagesPdfReport(monthName, queryYear, agencyName, researchMode);
-        } else if (await this.researchStorageService.hasUnifiedReport(monthName, queryYear, agencyName, researchMode)) {
-          const unifiedReport = await this.researchStorageService.getUnifiedReport(monthName, queryYear, agencyName, researchMode);
+        } else if (unifiedReport) {
           const catalog = this.extractImagesCatalog(unifiedReport);
           try {
             imagesPdfBuffer = await this.pdfService.generateCampaignImagesPdf(monthName, agencyName, catalog);
             await this.researchStorageService.saveImagesPdfReport(monthName, queryYear, agencyName, imagesPdfBuffer, researchMode);
           } catch (pdfErr) {
             this.logger.error(`Error generating cached images PDF: ${pdfErr.message}`);
+          }
+        }
+
+        // PowerPoint PPTX Cache Hit or Dynamic Generation
+        let pptxBuffer: Buffer | undefined;
+        let pptxS3Key: string | null = null;
+        if (generateSlides) {
+          if (await this.researchStorageService.hasPptxReport(monthName, queryYear, agencyName, researchMode)) {
+            this.logger.log('PowerPoint Slide Deck found in cache (Nivel 4.6 HIT). Loading from S3...');
+            pptxBuffer = await this.researchStorageService.getPptxReport(monthName, queryYear, agencyName, researchMode);
+            pptxS3Key = this.researchStorageService.getPptxS3Key(monthName, queryYear, agencyName, researchMode);
+          } else if (unifiedReport) {
+            this.logger.log('PowerPoint Slide Deck cache miss. Generating slides from cached unified report...');
+            try {
+              const pptxPrompt = await this.promptTemplateService.resolvePrompt('pptx-strategy-structure', { REPORT_CONTENT: unifiedReport });
+              const responseText = await this.geminiService.generateText(pptxPrompt, 'gemini-3.5-flash');
+              let slidesData: any[] = [];
+              const firstBrace = responseText.indexOf('{');
+              if (firstBrace !== -1) {
+                const possibleEnds: number[] = [];
+                let pos = responseText.indexOf('}', firstBrace);
+                while (pos !== -1) {
+                  possibleEnds.push(pos);
+                  pos = responseText.indexOf('}', pos + 1);
+                }
+                for (let i = possibleEnds.length - 1; i >= 0; i--) {
+                  try {
+                    const candidate = responseText.substring(firstBrace, possibleEnds[i] + 1);
+                    const parsedData = JSON.parse(candidate);
+                    slidesData = parsedData.slides || [];
+                    break;
+                  } catch (e) {}
+                }
+              }
+              if (slidesData.length > 0) {
+                const catalog = this.extractImagesCatalog(unifiedReport);
+                const campaignImages = catalog.map(c => ({ path: c.path, exists: fs.existsSync(c.path) }));
+                pptxBuffer = await this.pptxService.generateSlides(slidesData, campaignImages);
+                await this.researchStorageService.savePptxReport(monthName, queryYear, agencyName, pptxBuffer, researchMode);
+                pptxS3Key = this.researchStorageService.getPptxS3Key(monthName, queryYear, agencyName, researchMode);
+              }
+            } catch (pptxErr: any) {
+              this.logger.error(`Error generating PPTX slides during cache hit flow: ${pptxErr.message}`);
+            }
+          }
+        }
+
+        // Podcast Cache Hit or Dynamic Generation
+        let podcastBuffer: Buffer | null = null;
+        let podcastS3Key: string | null = null;
+        let podcastScriptS3Key: string | null = null;
+        if (generatePodcast) {
+          if (await this.researchStorageService.hasPodcastReport(monthName, queryYear, agencyName, researchMode)) {
+            this.logger.log('Podcast audio found in S3 cache (HIT). Loading keys...');
+            podcastS3Key = this.researchStorageService.getPodcastS3Key(monthName, queryYear, agencyName, researchMode);
+            podcastScriptS3Key = this.researchStorageService.getPodcastScriptS3Key(monthName, queryYear, agencyName, researchMode);
+            try {
+              podcastBuffer = await this.researchStorageService.getPodcastReport(monthName, queryYear, agencyName, researchMode);
+            } catch (err: any) {
+              this.logger.warn(`Failed to fetch cached podcast buffer: ${err.message}`);
+            }
+          } else if (unifiedReport) {
+            this.logger.log('Podcast audio cache miss. Generating podcast from cached unified report...');
+            const podcastRes = await this.processPodcastOption(unifiedReport, monthName, queryYear, agencyName, researchMode);
+            podcastS3Key = podcastRes.podcastS3Key;
+            podcastScriptS3Key = podcastRes.podcastScriptS3Key;
+            podcastBuffer = podcastRes.podcastBuffer;
           }
         }
 
@@ -190,13 +267,27 @@ Este documento detalla las tendencias del consumidor, temporalidades y tácticas
           });
         }
 
+        if (pptxBuffer) {
+          additionalAttachments.push({
+            content: pptxBuffer,
+            name: `Presentacion_Estrategia_${monthName.replace(/\s+/g, '_')}_2026.pptx`,
+          });
+        }
+
+        if (podcastBuffer) {
+          additionalAttachments.push({
+            content: podcastBuffer,
+            name: `Podcast_Estrategia_${monthName.replace(/\s+/g, '_')}_2026.mp3`,
+          });
+        }
+
         const emailBodyText = `Estimado Director,
 
 Adjuntamos el Plan Estratégico de Ventas y Marketing correspondiente al periodo de ${monthName}. Este reporte unifica el análisis cuantitativo de ventas históricas, las proyecciones de objetivos sugeridos por modelo y la investigación estratégica de tendencias de mercado (Deep Research) para impulsar el desempeño comercial de la marca Jetour y Soueast en México.
 
 El objetivo de ventas global recomendado para este periodo se establece en ${metrics.totals.suggestedGoal2026} unidades, lo que representa una tendencia de crecimiento anual acumulada del ${metrics.totals.growthRate}% en el trimestre de comparación. La justificación de metas individuales por modelo y las tácticas específicas de campañas de temporada y rotación de unidades seminuevas (Trade-in) se detallan a profundidad en el documento ejecutivo PDF anexo a este mensaje.`;
 
-        this.logger.log(`Sending cached unified Strategic Sales Plan email with 3 attachments to ${emailDestination}...`);
+        this.logger.log(`Sending cached unified Strategic Sales Plan email with ${additionalAttachments.length} attachments to ${emailDestination}...`);
         const emailSent = await this.emailService.sendMailWithAttachment(
           emailDestination,
           `Plan Estratégico de Ventas - ${monthName} (Caché)`,
@@ -221,6 +312,9 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
               researchS3Key: this.researchStorageService.getResearchS3Key(monthName, queryYear, researchMode),
               pdfS3Key: this.researchStorageService.getPdfS3Key(monthName, queryYear, agencyName, researchMode, generateImages),
               imagesS3Key: this.researchStorageService.getImagesPdfS3Key(monthName, queryYear, agencyName, researchMode),
+              pptxS3Key,
+              podcastS3Key,
+              podcastScriptS3Key,
             },
           }).catch(dbErr => this.logger.error(`Failed to save execution log to DB: ${dbErr.message}`));
 
@@ -396,6 +490,47 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
         modifiedMarkdown = unifiedStrategyMarkdown.replace(/\[PROMPT:\s*(.*?)\]/gi, '');
       }
 
+      // Extract tracking metadata block and URL sources from the original Deep Research report
+      let trackingInfo: { metadataText: string; sources: string[] } | undefined = undefined;
+      if (realDeepResearchMarkdown) {
+        let metadataText = '';
+        const parts = realDeepResearchMarkdown.split('---');
+        if (parts.length >= 3 && parts[1].includes('METADATA DE INVESTIGACIÓN')) {
+          metadataText = parts[1].trim();
+        }
+        
+        const sourcesSet = new Set<string>();
+        // Match Markdown links: [Title](URL)
+        const mdLinkRegex = /\[([^\]]*?)\]\(((https?:\/\/[^\s\)]+))\)/g;
+        let match;
+        while ((match = mdLinkRegex.exec(realDeepResearchMarkdown)) !== null) {
+          const title = match[1].trim() || 'Enlace de Referencia';
+          const url = match[2].trim();
+          sourcesSet.add(`${title}: ${url}`);
+        }
+        
+        // Match raw URLs
+        const rawUrlRegex = /(?<!\]\()(https?:\/\/[a-zA-Z0-9][-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b[-a-zA-Z0-9()@:%_\+.~#?&//=]*)/g;
+        while ((match = rawUrlRegex.exec(realDeepResearchMarkdown)) !== null) {
+          const url = match[1].trim();
+          let alreadyInMd = false;
+          for (const s of sourcesSet) {
+            if (s.includes(url)) {
+              alreadyInMd = true;
+              break;
+            }
+          }
+          if (!alreadyInMd) {
+            sourcesSet.add(url);
+          }
+        }
+        
+        trackingInfo = {
+          metadataText: metadataText || 'Información de tracking no disponible.',
+          sources: Array.from(sourcesSet),
+        };
+      }
+
       // --- GENERAR REPORTE EJECUTIVO PDF UNIFICADO Y ENVIAR UN CORREO ÚNICO ---
       this.logger.log('Generating unified executive PDF report (cover, tables, vector charts, unified strategy with ads images)...');
       const pdfBuffer = await this.pdfService.generateExecutivePdf(
@@ -404,6 +539,7 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
         metrics,
         modifiedMarkdown,
         bannerInfo,
+        trackingInfo,
       );
       this.logger.log('Executive PDF successfully generated.');
 
@@ -412,6 +548,56 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
         await this.researchStorageService.savePdfReport(monthName, queryYear, agencyName, pdfBuffer, researchMode, generateImages);
       } else {
         this.logger.warn(`Skipping S3 PDF upload because one or more ad images failed to generate. Next execution will retry.`);
+      }
+
+      // PowerPoint Slide Deck generation
+      let pptxBuffer: Buffer | undefined;
+      let pptxS3Key: string | null = null;
+      if (generateSlides) {
+        this.logger.log('Generating PowerPoint slide deck from newly unified strategy...');
+        try {
+          const pptxPrompt = await this.promptTemplateService.resolvePrompt('pptx-strategy-structure', { REPORT_CONTENT: modifiedMarkdown });
+          const responseText = await this.geminiService.generateText(pptxPrompt, 'gemini-3.5-flash');
+          let slidesData: any[] = [];
+          const firstBrace = responseText.indexOf('{');
+          if (firstBrace !== -1) {
+            const possibleEnds: number[] = [];
+            let pos = responseText.indexOf('}', firstBrace);
+            while (pos !== -1) {
+              possibleEnds.push(pos);
+              pos = responseText.indexOf('}', pos + 1);
+            }
+            for (let i = possibleEnds.length - 1; i >= 0; i--) {
+              try {
+                const candidate = responseText.substring(firstBrace, possibleEnds[i] + 1);
+                const parsedData = JSON.parse(candidate);
+                slidesData = parsedData.slides || [];
+                break;
+              } catch (e) {}
+            }
+          }
+          if (slidesData.length > 0) {
+            const catalog = this.extractImagesCatalog(modifiedMarkdown);
+            const campaignImages = catalog.map(c => ({ path: c.path, exists: fs.existsSync(c.path) }));
+            pptxBuffer = await this.pptxService.generateSlides(slidesData, campaignImages);
+            await this.researchStorageService.savePptxReport(monthName, queryYear, agencyName, pptxBuffer, researchMode);
+            pptxS3Key = this.researchStorageService.getPptxS3Key(monthName, queryYear, agencyName, researchMode);
+          }
+        } catch (pptxErr: any) {
+          this.logger.error(`Error generating PPTX slides during cache miss flow: ${pptxErr.message}`);
+        }
+      }
+
+      // Podcast Generation
+      let podcastBuffer: Buffer | null = null;
+      let podcastS3Key: string | null = null;
+      let podcastScriptS3Key: string | null = null;
+      if (generatePodcast) {
+        this.logger.log('Generating podcast from newly unified strategy...');
+        const podcastRes = await this.processPodcastOption(modifiedMarkdown, monthName, queryYear, agencyName, researchMode);
+        podcastS3Key = podcastRes.podcastS3Key;
+        podcastScriptS3Key = podcastRes.podcastScriptS3Key;
+        podcastBuffer = podcastRes.podcastBuffer;
       }
 
       // Build concise 2-paragraph email body
@@ -449,7 +635,21 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
         });
       }
 
-      this.logger.log(`Sending unified Strategic Sales Plan email with 3 attachments to ${emailDestination}...`);
+      if (pptxBuffer) {
+        additionalAttachments.push({
+          content: pptxBuffer,
+          name: `Presentacion_Estrategia_${monthName.replace(/\s+/g, '_')}.pptx`,
+        });
+      }
+
+      if (podcastBuffer) {
+        additionalAttachments.push({
+          content: podcastBuffer,
+          name: `Podcast_Estrategia_${monthName.replace(/\s+/g, '_')}.mp3`,
+        });
+      }
+
+      this.logger.log(`Sending unified Strategic Sales Plan email with ${additionalAttachments.length} attachments to ${emailDestination}...`);
       const emailSent = await this.emailService.sendMailWithAttachment(
         emailDestination,
         `Plan Estratégico de Ventas y Marketing - ${monthName}`,
@@ -475,6 +675,9 @@ El objetivo de ventas global recomendado para este periodo se establece en ${met
             researchS3Key: this.researchStorageService.getResearchS3Key(monthName, queryYear, researchMode),
             pdfS3Key: this.researchStorageService.getPdfS3Key(monthName, queryYear, agencyName, researchMode, generateImages),
             imagesS3Key: imagesPdfBuffer ? this.researchStorageService.getImagesPdfS3Key(monthName, queryYear, agencyName, researchMode) : null,
+            pptxS3Key,
+            podcastS3Key,
+            podcastScriptS3Key,
           },
         });
 
@@ -662,5 +865,34 @@ Este reporte atómico detalla tus métricas de ventas locales recientes, la comp
     });
 
     return catalog;
+  }
+
+  private async processPodcastOption(
+    reportContent: string,
+    monthName: string,
+    queryYear: number,
+    agencyName: string,
+    researchMode: string,
+  ): Promise<{ podcastS3Key: string | null; podcastScriptS3Key: string | null; podcastBuffer: Buffer | null }> {
+    try {
+      this.logger.log('Generating podcast script and audio segments...');
+      const scriptTurns = await this.podcastService.generatePodcastScript(reportContent);
+      const scriptContent = JSON.stringify(scriptTurns, null, 2);
+
+      this.logger.log('Synthesizing podcast script to binary audio stream...');
+      const podcastBuffer = await this.podcastService.synthesizePodcast(scriptTurns);
+
+      this.logger.log('Uploading podcast files to S3...');
+      await this.researchStorageService.savePodcastScript(monthName, queryYear, agencyName, scriptContent, researchMode);
+      await this.researchStorageService.savePodcastReport(monthName, queryYear, agencyName, podcastBuffer, researchMode);
+
+      const podcastS3Key = this.researchStorageService.getPodcastS3Key(monthName, queryYear, agencyName, researchMode);
+      const podcastScriptS3Key = this.researchStorageService.getPodcastScriptS3Key(monthName, queryYear, agencyName, researchMode);
+
+      return { podcastS3Key, podcastScriptS3Key, podcastBuffer };
+    } catch (err: any) {
+      this.logger.error(`Error generating podcast audio or script: ${err.message}`, err.stack);
+      return { podcastS3Key: null, podcastScriptS3Key: null, podcastBuffer: null };
+    }
   }
 }

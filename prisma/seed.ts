@@ -26,8 +26,11 @@ REPORTE DEEP RESEARCH CUALITATIVO DE MERCADO:
 
 INSTRUCCIONES DE REDACCIÓN E IMPERATIVAS:
 1. **FUSIONA LOS DATOS CON LA ESTRATEGIA:** Enlaza y justifica la meta de ventas sugerida de cada modelo (ej. Jetour X70, Dashing, etc.) directamente con las temporalidades de campaña y tendencias cualitativas descritas en el Deep Research.
-2. **PLANTEA TAREAS COMERCIALES PUNTUALES:** Define una lista de tareas de negocio y marketing sumamente específicas y accionables para el equipo comercial, ligando metas y desempeños YoY.
-3. **SECCIÓN EXCLUSIVA DE CAMPAÑAS DE MARKETING:**
+2. **SECCIÓN EXCLUSIVA DE ENTORNO Y COMPETENCIA:** Debes incluir obligatoriamente una sección titulada exactamente \`## Análisis del Entorno y Competencia (Deep Research)\`. En ella, integra en detalle los hallazgos macroeconómicos (tasas de referencia de Banxico, inflación del INEGI, AMIA, etc.) y la comparativa frente a competidores chinos (MG, Omoda, Chirey, BYD) y tradicionales (Nissan, Chevrolet, Toyota, Kia, Honda) que se detallan en el Deep Research.
+3. **SECCIÓN EXCLUSIVA DE RIESGOS Y MITIGACIÓN:** Debes incluir obligatoriamente una sección titulada exactamente \`## Análisis de Riesgos y Mitigación Estratégica\`. En ella, detalla los riesgos identificados (tasas de interés elevadas, disponibilidad de inventario, etc.) y sus correspondientes tácticas de mitigación.
+4. **SECCIÓN EXCLUSIVA DE SEMINUEVOS Y TRADE-IN:** Debes incluir obligatoriamente una sección titulada exactamente \`## Tácticas de Inventario y Plan Seminuevos (Trade-in)\` detallando las estrategias de toma a cuenta de vehículos usados.
+5. **PLANTEA TAREAS COMERCIALES PUNTUALES:** Define una lista de tareas de negocio y marketing sumamente específicas y accionables para el equipo comercial, ligando metas y desempeños YoY.
+6. **SECCIÓN EXCLUSIVA DE CAMPAÑAS DE MARKETING:**
    Debes incluir obligatoriamente una sección titulada exactamente \`## Propuestas de Campañas de Marketing\`.
    Dentro de esta sección, debes estructurar propuestas comerciales específicas para los próximos 3 meses, iniciando en el mes actual del periodo ({{M1}}). Debes incluir:
    - Segmentación clara con subtítulos de nivel 3 (\`### {{M1}}\`, \`### {{M2}}\`, \`### {{M3}}\`).
@@ -202,6 +205,136 @@ Tono y Directrices de Redacción del Reporte:
       name: 'Investigación Posventa (Deep Research)',
       description: 'Prompt de entrada del agente para recopilar tendencias externas de posventa, fletes marítimos, suministro de refacciones y benchmark.',
       content: aftersalesDeepResearchPrompt,
+    },
+  });
+
+  const pptxStrategyPrompt = `Eres un Diseñador Instruccional Senior y Diseñador Gráfico de Presentaciones de Negocio.
+Tu objetivo es estructurar una presentación de PowerPoint de alta calidad, clara, ejecutiva e impactante a partir del siguiente reporte de estrategia comercial.
+
+Reporte de origen:
+---
+{{REPORT_CONTENT}}
+---
+
+Instrucciones de diseño y estructura de diapositivas:
+1. Diseña un flujo lógico y dinámico de diapositivas (entre 6 y 12 diapositivas según el volumen de contenido).
+2. Agrega identidad gráfica: **INCLUYE OBLIGATORIAMENTE UN EMOJI representativo al inicio de cada título de diapositiva y de cada viñeta (bullet)** para hacer el reporte visualmente atractivo y fácil de escanear.
+3. Clasifica cada diapositiva en uno de estos tipos (slideType):
+   - "cover": Portada de la presentación (Title, Subtitle). Solo puede haber 1 en la presentación.
+   - "metrics": Muestra indicadores numéricos y metas de venta. Debe contener un array de "metrics" (máximo 3) con "value", "label" y "trend". También puede contener un array de "bullets" complementarias (máximo 3).
+   - "bullets": Diapositiva clásica de texto estructurado en viñetas. Debe contener un array de "bullets" (máximo 4).
+   - "two-columns": Comparativas o desglose en dos columnas. Debe contener "col1Title", "col2Title", "col1Bullets" (máximo 3) y "col2Bullets" (máximo 3).
+   - "campaign": Diapositiva dedicada a mostrar una campaña de marketing específica. Debe contener "title" (nombre de la campaña), "concept" (descripción muy corta del concepto, máximo 15 palabras) y "copy" (texto del ad para redes sociales, máximo 25 palabras).
+4. REGLA INQUEBRANTABLE DE EVITACIÓN DE TRASLAPE: Ninguna viñeta (bullet) o texto explicativo debe superar las 15 palabras o 110 caracteres. Todo texto debe ser conciso, directo y centrado en la acción.
+
+Debes responder ÚNICAMENTE con un objeto JSON estructurado con el siguiente formato, sin markdown extra (sin triple backticks de bloque de código, solo texto JSON puro):
+
+{
+  "slides": [
+    {
+      "slideType": "cover",
+      "title": "🏆 Título Principal",
+      "subtitle": "Subtítulo de Portada"
+    },
+    {
+      "slideType": "metrics",
+      "title": "📈 Título de Diapositiva",
+      "metrics": [
+        { "value": "+571%", "label": "Crecimiento de Ventas", "trend": "vs Año Anterior" }
+      ],
+      "bullets": [
+        "🚗 Gran aceptación del mercado mexicano.",
+        "🔋 Líder absoluto: modelos híbridos T2."
+      ]
+    },
+    {
+      "slideType": "bullets",
+      "title": "🎯 Título de Diapositiva",
+      "bullets": [
+        "📦 Implementar programa de Trade-In.",
+        "🔧 Auditorías semanales de inventario."
+      ]
+    },
+    {
+      "slideType": "two-columns",
+      "title": "⚖️ Título de Diapositiva",
+      "col1Title": "Columna Izquierda",
+      "col2Title": "Columna Derecha",
+      "col1Bullets": ["📝 Punto 1", "📝 Punto 2"],
+      "col2Bullets": ["⚠️ Punto 1", "⚠️ Punto 2"]
+    },
+    {
+      "slideType": "campaign",
+      "title": "📢 Campaña: Nombre",
+      "concept": "Concepto corto de la campaña.",
+      "copy": "Copy promocional corto de la campaña."
+    }
+  ]
+}`;
+
+  await prisma.promptTemplate.upsert({
+    where: { key: 'pptx-strategy-structure' },
+    update: { content: pptxStrategyPrompt },
+    create: {
+      key: 'pptx-strategy-structure',
+      name: 'Estructuración de PowerPoint (JSON)',
+      description: 'Prompt para transformar el reporte Markdown en una estructura JSON optimizada para generación de diapositivas.',
+      content: pptxStrategyPrompt,
+    },
+  });
+
+  const podcastScriptPrompt = `Actúa como un guionista experto y un productor de podcasts corporativos de alto nivel. Tu tarea es leer el reporte estratégico proporcionado (en formato Markdown/PDF) y transformarlo en un guion de podcast dinámico, analítico y sumamente interesante.
+
+Parámetros del Podcast:
+Locutores: 2 personas. "Elena" (Voz Femenina) y "David" (Voz Masculina).
+Duración Objetivo: Entre 4 y 7 minutos de audio. Para lograrlo, el texto total de tu respuesta debe tener estrictamente entre 4,000 y 7,000 caracteres.
+Tono: Profesional y ejecutivo, pero con un fuerte componente de asombro y sorpresa genuina. Los locutores deben sonar fascinados por los hallazgos, los cuellos de botella descubiertos o las oportunidades de crecimiento. (Ejemplo: "¡Es increíble ver cómo...!", "David, me dejó con la boca abierta el dato de...", "¡Wow, eso es un cambio radical!").
+
+Instrucciones de Contenido:
+- No leas el reporte línea por línea. Sintetiza y extrae los 3 o 4 hallazgos más críticos, riesgos operativos o estrategias de mayor impacto del documento.
+- Crea un debate natural. David y Elena deben interrumpirse sutilmente, complementarse y reaccionar a los datos del otro.
+- Cierra el episodio con un llamado a la acción motivador para los Gerentes de Agencia que escucharán el audio.
+
+REGLAS ESTRICTAS DE PRONUNCIACIÓN Y SSML:
+El texto de cada locutor será procesado por un motor TTS. Debes usar etiquetas SSML en el campo "text" de tu JSON.
+1. Identifica automáticamente marcas de autos extranjeras (como Jetour, Soueast, Nissan, Honda, BYD, etc.) y modelos (como Dashing, S07, T2, G700, I-DM, etc.). Envuelve cada mención con etiquetas SSML de sustitución fonética adaptada al español. Por ejemplo:
+   - Toda mención a la marca "Jetour" debe escribirse OBLIGATORIAMENTE así: <sub alias="Ye Tour">Jetour</sub>
+   - Toda mención a la marca "Soueast" debe escribirse OBLIGATORIAMENTE así: <sub alias="Sow ist">Soueast</sub>
+   - Toda mención al modelo "Dashing" debe escribirse OBLIGATORIAMENTE así: <sub alias="Da shing">Dashing</sub>
+2. Toda mención a siglas de categorías como "SUV" debe escribirse deletreada para que el motor la lea letra por letra: <say-as interpret-as="characters">SUV</say-as>
+3. Inserta pausas dramáticas o respiraciones usando <break time="400ms"/> cuando un locutor se sorprenda, haga una transición o antes de revelar un dato crítico.
+4. Usa <emphasis level="strong">palabra</emphasis> en las métricas más asombrosas.
+
+Formato de Salida Obligatorio (Google TTS Ready):
+Tu respuesta debe ser EXCLUSIVAMENTE un arreglo JSON válido. No incluyas texto fuera del JSON, ni saludos, ni formato Markdown adicional (el bloque de código json está permitido, pero nada más).
+
+Estructura exacta del JSON:
+[
+  {
+    "speaker": "Elena",
+    "gender": "FEMALE",
+    "voice_recommendation": "es-US-Neural2-A", 
+    "text": "¡Hola a todos y bienvenidos a nuestro análisis estratégico mensual! <break time=\"300ms\"/> Hoy tenemos en la mesa el reporte operativo y, honestamente David, los datos que arrojó el sistema de inteligencia artificial son impactantes."
+  },
+  {
+    "speaker": "David",
+    "gender": "MALE",
+    "voice_recommendation": "es-US-Neural2-B",
+    "text": "¡Totalmente, Elena! Cuando vi la gráfica de retención de clientes me quedé helado. <break time=\"400ms\"/> Es increíble que estemos frente a una oportunidad tan masiva..."
+  }
+]
+
+Documento Fuente (Reporte):
+{{REPORT_CONTENT}}`;
+
+  await prisma.promptTemplate.upsert({
+    where: { key: 'podcast-script-generation' },
+    update: { content: podcastScriptPrompt },
+    create: {
+      key: 'podcast-script-generation',
+      name: 'Generación de Guion de Podcast (JSON+SSML)',
+      description: 'Prompt para estructurar un diálogo dinámico y analítico con marcas SSML optimizado para síntesis de dos voces (Elena/David) mediante Google Cloud TTS.',
+      content: podcastScriptPrompt,
     },
   });
 

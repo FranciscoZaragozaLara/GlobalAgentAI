@@ -17,6 +17,7 @@ export class PdfService {
     metrics: any,
     deepResearchMarkdown: string,
     bannerInfo?: { path: string; prompt: string; model: string; file: string },
+    trackingInfo?: { metadataText: string; sources: string[] },
   ): Promise<Buffer> {
     const cleanMonth = month.replace(/\d+/g, '').trim();
     let year = 2026;
@@ -434,6 +435,55 @@ export class PdfService {
           return;
         }
       });
+
+      // --- PAGE 4: TRAZABILIDAD DE FUENTES (TRACKING) ---
+      if (trackingInfo) {
+        doc.addPage();
+        
+        doc.fillColor('#1A365D')
+           .fontSize(16)
+           .font('Helvetica-Bold')
+           .text('3. Trazabilidad de Fuentes de Información', { paragraphGap: 15 });
+        
+        doc.fillColor('#2D3748')
+           .fontSize(9.5)
+           .font('Helvetica')
+           .text('Este reporte ejecutivo y plan de trabajo estratégico consolida el análisis de datos internos con los hallazgos y el contexto cualitativo externo proveniente del proceso de Deep Research. A continuación se detallan los metadatos de auditoría y trazabilidad del reporte de investigación utilizado como fuente primaria:', { paragraphGap: 15, align: 'justify' });
+        
+        // Render Metadata block in a styled box
+        const boxStartY = doc.y;
+        doc.rect(50, boxStartY, 495, 95).fill('#F8FAFC');
+        doc.rect(50, boxStartY, 495, 95).stroke('#E2E8F0');
+        
+        doc.fillColor('#1A365D')
+           .fontSize(8.5)
+           .font('Helvetica-Bold')
+           .text('METADATA DE AUDITORÍA (RESEARCH TRACKING)', 65, boxStartY + 10);
+        
+        doc.fillColor('#4A5568')
+           .fontSize(8)
+           .font('Courier')
+           .text(trackingInfo.metadataText, 65, boxStartY + 25, { width: 465, lineGap: 2 });
+        
+        doc.y = boxStartY + 115;
+        
+        if (trackingInfo.sources && trackingInfo.sources.length > 0) {
+          doc.fillColor('#1A365D')
+             .fontSize(12)
+             .font('Helvetica-Bold')
+             .text('Referencias Web e Hilos de Investigación Consultados:', { paragraphGap: 10 });
+          
+          trackingInfo.sources.forEach((source) => {
+            if (doc.y > 700) {
+              doc.addPage();
+            }
+            doc.fillColor('#2B6CB0')
+               .fontSize(7.5)
+               .font('Helvetica')
+               .text('• ' + source, { indent: 12, paragraphGap: 4, width: 480 });
+          });
+        }
+      }
 
       // --- ADD GLOBAL HEADERS, FOOTERS & PAGE NUMBERS ---
       const range = doc.bufferedPageRange();

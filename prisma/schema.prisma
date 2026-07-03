@@ -24,6 +24,9 @@ model ExecutionLog {
   researchS3Key String?
   pdfS3Key      String?
   imagesS3Key   String?
+  pptxS3Key     String?
+  podcastS3Key  String?
+  podcastScriptS3Key String?
 
   // Relación con los dealers
   dealerLogs    DealerExecutionLog[]

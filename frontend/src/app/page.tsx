@@ -27,6 +27,9 @@ import {
   Mail,
   Sliders,
   ExternalLink,
+  Presentation,
+  Headphones,
+  Download,
 } from "lucide-react";
 
 interface ExecutionLog {
@@ -45,6 +48,9 @@ interface ExecutionLog {
   researchUrl: string | null;
   pdfUrl: string | null;
   imagesUrl: string | null;
+  pptxUrl?: string | null;
+  podcastUrl?: string | null;
+  podcastScriptUrl?: string | null;
   dealerCount?: number;
 }
 
@@ -159,6 +165,8 @@ export default function Dashboard() {
   const [researchMode, setResearchMode] = useState("Basica");
   const [reportMode, setReportMode] = useState("Triple");
   const [generateImages, setGenerateImages] = useState(true);
+  const [generateSlides, setGenerateSlides] = useState(false);
+  const [generatePodcast, setGeneratePodcast] = useState(false);
   const [selectedScript, setSelectedScript] = useState("demo-sales-plan");
 
   // Filter states
@@ -206,6 +214,8 @@ export default function Dashboard() {
           researchMode,
           reportMode,
           generateImages,
+          generateSlides,
+          generatePodcast,
         }),
       });
 
@@ -399,6 +409,45 @@ export default function Dashboard() {
                 </a>
               )}
 
+              {log.pptxUrl && (
+                <a
+                  href={log.pptxUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-200 transition-all border border-zinc-800"
+                  title="Descargar Presentación Slides PowerPoint (.PPTX)"
+                >
+                  <Presentation className="w-3.5 h-3.5 text-indigo-400" />
+                  Slides PPTX
+                </a>
+              )}
+
+              {log.podcastScriptUrl && (
+                <a
+                  href={log.podcastScriptUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-200 transition-all border border-zinc-800"
+                  title="Descargar Guion del Podcast en Texto (.JSON)"
+                >
+                  <FileText className="w-3.5 h-3.5 text-blue-400" />
+                  Guion
+                </a>
+              )}
+
+              {log.podcastUrl && (
+                <a
+                  href={log.podcastUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-200 transition-all border border-zinc-800"
+                  title="Descargar Audio del Podcast (.MP3)"
+                >
+                  <Download className="w-3.5 h-3.5 text-violet-400" />
+                  Audio
+                </a>
+              )}
+
               {log.dealerCount && log.dealerCount > 0 ? (
                 <button
                   onClick={() => fetchDealerLogs(log.id, log.agencyName)}
@@ -409,6 +458,22 @@ export default function Dashboard() {
                   Dealers ({log.dealerCount})
                 </button>
               ) : null}
+
+              {log.podcastUrl && (
+                <div className="flex flex-col gap-1 p-2 rounded bg-zinc-950 border border-zinc-900/80 w-full mt-2">
+                  <div className="flex items-center gap-1.5">
+                    <Headphones className="w-3.5 h-3.5 text-violet-400" />
+                    <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
+                      Reproducir Podcast
+                    </span>
+                  </div>
+                  <audio
+                    src={log.podcastUrl}
+                    controls
+                    className="w-full h-8 rounded bg-zinc-900 border border-zinc-800/80 px-1 py-0.5 text-xs opacity-90 outline-none"
+                  />
+                </div>
+              )}
             </div>
           );
         },
@@ -734,6 +799,44 @@ export default function Dashboard() {
                       id="generateImages"
                       checked={generateImages}
                       onChange={(e) => setGenerateImages(e.target.checked)}
+                      className="w-4 h-4 rounded border-zinc-800 text-indigo-650 focus:ring-indigo-500/20 bg-zinc-950 cursor-pointer"
+                    />
+                  </div>
+
+                  {/* Generate Slides Toggle */}
+                  <div className="flex items-center justify-between p-2.5 rounded bg-zinc-950/60 border border-zinc-900/80">
+                    <div className="space-y-0.5">
+                      <label className="text-xs font-bold text-zinc-300 uppercase tracking-wider block cursor-pointer select-none" htmlFor="generateSlides">
+                        Generar Slides PPTX
+                      </label>
+                      <span className="text-[9px] text-zinc-550 leading-relaxed font-light block">
+                        Estructura y exporta el reporte a PowerPoint
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      id="generateSlides"
+                      checked={generateSlides}
+                      onChange={(e) => setGenerateSlides(e.target.checked)}
+                      className="w-4 h-4 rounded border-zinc-800 text-indigo-650 focus:ring-indigo-500/20 bg-zinc-950 cursor-pointer"
+                    />
+                  </div>
+
+                  {/* Generate Podcast Toggle */}
+                  <div className="flex items-center justify-between p-2.5 rounded bg-zinc-950/60 border border-zinc-900/80">
+                    <div className="space-y-0.5">
+                      <label className="text-xs font-bold text-zinc-300 uppercase tracking-wider block cursor-pointer select-none" htmlFor="generatePodcast">
+                        Generar Podcast de Audio
+                      </label>
+                      <span className="text-[9px] text-zinc-550 leading-relaxed font-light block">
+                        Crea un debate conversacional estructurado con SSML y Google TTS
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      id="generatePodcast"
+                      checked={generatePodcast}
+                      onChange={(e) => setGeneratePodcast(e.target.checked)}
                       className="w-4 h-4 rounded border-zinc-800 text-indigo-650 focus:ring-indigo-500/20 bg-zinc-950 cursor-pointer"
                     />
                   </div>

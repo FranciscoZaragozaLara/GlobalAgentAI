@@ -56,4 +56,20 @@ export class ExecuteScriptDto {
   })
   @IsOptional()
   generateImages?: boolean;
+
+  @ApiProperty({
+    description: 'Bandera para determinar si se deben generar la presentación slide de PowerPoint del plan de trabajo',
+    example: false,
+    required: false,
+  })
+  @IsOptional()
+  generateSlides?: boolean;
+
+  @ApiProperty({
+    description: 'Bandera para determinar si se debe generar el podcast estratégico de audio del plan de trabajo',
+    example: false,
+    required: false,
+  })
+  @IsOptional()
+  generatePodcast?: boolean;
 }
