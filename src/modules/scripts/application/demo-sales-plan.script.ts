@@ -141,13 +141,23 @@ export class DemoSalesPlanScript extends BaseScript {
           modifiedMarkdown = unifiedReport;
         } else {
           this.logger.log(`Unified Strategy Report cache miss. Generating unifier strategy...`);
+          const monthsCapitalized = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+          const m1Idx = queryMonth - 1;
+          const m2Idx = (m1Idx + 1) % 12;
+          const m2Year = (m1Idx + 1) >= 12 ? queryYear + 1 : queryYear;
+          const m3Idx = (m1Idx + 2) % 12;
+          const m3Year = (m1Idx + 2) >= 12 ? queryYear + 1 : queryYear;
+
           const comparisonPrompt = await this.promptTemplateService.resolvePrompt('brand-strategy', {
             MONTH_NAME: monthName,
             BRAND_NAME: 'Jetour & Soueast',
-            METRICS_SALES: JSON.stringify(metrics, null, 2),
+            SALES_METRICS: JSON.stringify(metrics, null, 2),
             DEEP_RESEARCH: researchMd,
+            M1: `${monthsCapitalized[m1Idx]} ${queryYear}`,
+            M2: `${monthsCapitalized[m2Idx]} ${m2Year}`,
+            M3: `${monthsCapitalized[m3Idx]} ${m3Year}`,
           });
-          unifiedReport = await this.geminiService.generateText(comparisonPrompt, 'gemini-2.5-pro');
+          unifiedReport = await this.geminiService.generateText(comparisonPrompt, 'gemini-3.1-pro');
           await this.researchStorageService.saveUnifiedReport(monthName, queryYear, agencyName, unifiedReport, researchMode);
           modifiedMarkdown = unifiedReport;
         }

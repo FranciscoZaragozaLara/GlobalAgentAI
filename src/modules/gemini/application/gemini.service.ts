@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleGenAI } from '@google/genai';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
 
 
 @Injectable()
@@ -10,18 +12,48 @@ export class GeminiService {
   private ai: GoogleGenAI;
 
   constructor(private readonly configService: ConfigService) {
-    const apiKey = this.configService.get<string>('GEMINI_API_KEY');
-    if (!apiKey) {
-      this.logger.error('GEMINI_API_KEY is not defined in env variables.');
+    const credentialsPath = this.configService.get<string>('GOOGLE_APPLICATION_CREDENTIALS');
+    let useVertex = false;
+    let projectId = '';
+
+    if (credentialsPath) {
+      const fullPath = path.isAbsolute(credentialsPath)
+        ? credentialsPath
+        : path.join(process.cwd(), credentialsPath);
+      if (fs.existsSync(fullPath)) {
+        try {
+          const creds = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
+          if (creds.project_id) {
+            projectId = creds.project_id;
+            useVertex = true;
+          }
+        } catch (e: any) {
+          this.logger.error(`Error reading Google Credentials JSON: ${e.message}`);
+        }
+      }
     }
-    // Initialize the official Google Gen AI SDK
-    this.ai = new GoogleGenAI({ apiKey });
+
+    if (useVertex) {
+      this.logger.log(`Initializing GoogleGenAI in Vertex AI mode for project: ${projectId}...`);
+      this.ai = new GoogleGenAI({
+        vertexai: true,
+        project: projectId,
+        location: 'global',
+      });
+    } else {
+      const apiKey = this.configService.get<string>('GEMINI_API_KEY');
+      if (!apiKey) {
+        this.logger.error('GEMINI_API_KEY is not defined in env variables.');
+      }
+      this.logger.log('Initializing GoogleGenAI in Developer API mode using API Key...');
+      this.ai = new GoogleGenAI({ apiKey });
+    }
   }
 
   /**
    * Generates content using a specific Gemini model
    */
-  async generateText(prompt: string, model: string = 'gemini-2.5-pro'): Promise<string> {
+  async generateText(prompt: string, model: string = 'gemini-3.1-pro'): Promise<string> {
     try {
       this.logger.log(`Invoking Gemini Model: ${model}...`);
       
@@ -62,9 +94,9 @@ export class GeminiService {
     let interactionId = 'N/A';
 
     if (uppercaseMode === 'Basica') {
-      this.logger.log('Starting Basic Deep Research using gemini-2.5-pro...');
-      modelOrAgentUsed = 'gemini-2.5-pro';
-      outputText = await this.generateText(prompt, 'gemini-2.5-pro');
+      this.logger.log('Starting Basic Deep Research using gemini-3.1-pro...');
+      modelOrAgentUsed = 'gemini-3.1-pro';
+      outputText = await this.generateText(prompt, 'gemini-3.1-pro');
     } else {
       const agentName = uppercaseMode === 'Avanzada' ? 'deep-research-max-preview-04-2026' : 'deep-research-preview-04-2026';
       modelOrAgentUsed = agentName;
