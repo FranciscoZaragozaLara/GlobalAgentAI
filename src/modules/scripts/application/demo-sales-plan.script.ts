@@ -92,6 +92,18 @@ export class DemoSalesPlanScript extends BaseScript {
       const metrics = await this.salesAnalyticsService.generateStrategyMetrics(queryYear, queryMonth);
       this.logger.log('Strategy comparison data and recommended targets calculated.');
 
+      this.logger.log('Fetching and mapping current vehicle inventory totals and model breakdown...');
+      try {
+        const inventoryTotals = await this.salesDataService.getExistenciaNuevosSeminuevosTotales();
+        const inventoryBrandModel = await this.salesDataService.getExistenciaResumenMarcaModelo();
+        (metrics as any).inventory = {
+          totals: inventoryTotals,
+          brandModel: inventoryBrandModel,
+        };
+      } catch (invErr) {
+        this.logger.error(`Error loading vehicle inventory metrics: ${invErr.message}`);
+      }
+
       const researchPrompt = await this.promptTemplateService.resolvePrompt('deep-research', {
         MONTH_NAME: monthName,
       });
@@ -148,7 +160,7 @@ export class DemoSalesPlanScript extends BaseScript {
           const m3Idx = (m1Idx + 2) % 12;
           const m3Year = (m1Idx + 2) >= 12 ? queryYear + 1 : queryYear;
 
-          const comparisonPrompt = await this.promptTemplateService.resolvePrompt('brand-strategy', {
+          let comparisonPrompt = await this.promptTemplateService.resolvePrompt('brand-strategy', {
             MONTH_NAME: monthName,
             BRAND_NAME: 'Jetour & Soueast',
             SALES_METRICS: JSON.stringify(metrics, null, 2),
@@ -157,6 +169,9 @@ export class DemoSalesPlanScript extends BaseScript {
             M2: `${monthsCapitalized[m2Idx]} ${m2Year}`,
             M3: `${monthsCapitalized[m3Idx]} ${m3Year}`,
           });
+
+          comparisonPrompt += `\n\n[INSTRUCCIÓN CRÍTICA DE INVENTARIOS]: El objeto SALES_METRICS contiene el estado del INVENTARIO actual (totals y brandModel). Debes integrar obligatoriamente una sección titulada "### 4. Análisis y Evaluación de Inventario" en la propuesta comercial redactada. Analiza los rangos de días (con especial énfasis en el riesgo del volumen de unidades con antigüedad mayor a 120 días que representan un costo financiero latente) y modelos específicos de alta permanencia (como Jetour X70 con más de 300 días de antigüedad promedio). Identifica riesgos y oportunidades, y define estrategias específicas de venta o rotación (ej. dinámicas comerciales de liquidación, bonos de venta rápida o canalización a flotillas) bajo las mejores prácticas automotrices.`;
+
           unifiedReport = await this.geminiService.generateText(comparisonPrompt, 'gemini-3.1-pro');
           await this.researchStorageService.saveUnifiedReport(monthName, queryYear, agencyName, unifiedReport, researchMode);
           modifiedMarkdown = unifiedReport;

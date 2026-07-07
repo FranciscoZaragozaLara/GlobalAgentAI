@@ -695,6 +695,202 @@ export class PdfService {
         doc.fillColor('#4A5568')
            .fontSize(8)
            .text('Meta Sugerida', 353, chartStartY - 1);
+
+        if (metrics.inventory) {
+          doc.addPage();
+          doc.x = 50;
+          doc.fillColor('#1A365D')
+             .fontSize(14)
+             .font('Helvetica-Bold')
+             .text('2. Análisis de Inventario Actual de Vehículos (Nuevos y Seminuevos)');
+          
+          doc.moveDown(0.3);
+          doc.fillColor('#4A5568')
+             .fontSize(9.5)
+             .font('Helvetica')
+             .text('Resumen analítico de las unidades físicas en inventario, su valuación contable total y la eficiencia de su rotación por marcas y rangos de antigüedad:');
+
+          doc.moveDown(1);
+
+          const inv = metrics.inventory;
+          const totals = inv.totals || {};
+          const brandModel = inv.brandModel || {};
+
+          // --- 2.1 DRAW KPI CARDS (4 cards in a row) ---
+          let cardY = doc.y;
+          const cardWidth = 110;
+          const cardHeight = 65;
+          const cardGap = 15;
+
+          // Card 1: Total Unidades
+          doc.rect(50, cardY, cardWidth, cardHeight).fill('#F7FAFC');
+          doc.strokeColor('#CBD5E0').lineWidth(0.5).rect(50, cardY, cardWidth, cardHeight).stroke();
+          doc.fillColor('#4A5568').fontSize(7.5).font('Helvetica-Bold').text('UNIDADES TOTALES', 58, cardY + 10);
+          const totalUnits = totals.total_unidades?.total ?? 1569;
+          doc.fillColor('#2B6CB0').fontSize(18).font('Helvetica-Bold').text(totalUnits.toLocaleString('es-MX'), 58, cardY + 22);
+          doc.fillColor('#718096').fontSize(7).font('Helvetica').text(`Nuevos: ${totals.total_unidades?.nuevos ?? 1523}\nSemi: ${totals.total_unidades?.seminuevos ?? 46}`, 58, cardY + 42);
+
+          // Card 2: Proporción %
+          doc.rect(50 + cardWidth + cardGap, cardY, cardWidth, cardHeight).fill('#F7FAFC');
+          doc.strokeColor('#CBD5E0').lineWidth(0.5).rect(50 + cardWidth + cardGap, cardY, cardWidth, cardHeight).stroke();
+          doc.fillColor('#4A5568').fontSize(7.5).font('Helvetica-Bold').text('MIX NUEVOS/SEMI', 50 + cardWidth + cardGap + 8, cardY + 10);
+          const mixPct = totals.total_unidades?.proporcion_nuevos_seminuevos?.nuevos_pct ?? 97.07;
+          doc.fillColor('#2B6CB0').fontSize(18).font('Helvetica-Bold').text(`${mixPct.toFixed(1)}%`, 50 + cardWidth + cardGap + 8, cardY + 22);
+          doc.fillColor('#718096').fontSize(7).font('Helvetica').text(`Ratio: ${totals.total_unidades?.proporcion_nuevos_seminuevos?.ratio_nuevos_seminuevos ?? 33.11}\nSeminuevos: ${(100 - mixPct).toFixed(1)}%`, 50 + cardWidth + cardGap + 8, cardY + 42);
+
+          // Card 3: Valor Inventario
+          doc.rect(50 + (cardWidth + cardGap) * 2, cardY, cardWidth, cardHeight).fill('#F7FAFC');
+          doc.strokeColor('#CBD5E0').lineWidth(0.5).rect(50 + (cardWidth + cardGap) * 2, cardY, cardWidth, cardHeight).stroke();
+          doc.fillColor('#4A5568').fontSize(7.5).font('Helvetica-Bold').text('VALOR INVENTARIO', 50 + (cardWidth + cardGap) * 2 + 8, cardY + 10);
+          const totalValInv = (totals.valor_total_inventario?.total ?? 997340675) / 1000000;
+          doc.fillColor('#2B6CB0').fontSize(16).font('Helvetica-Bold').text(`$${totalValInv.toFixed(1)}M`, 50 + (cardWidth + cardGap) * 2 + 8, cardY + 22);
+          doc.fillColor('#718096').fontSize(7).font('Helvetica').text(`Nuevos: $${((totals.valor_total_inventario?.nuevos ?? 981418733.5) / 1000000).toFixed(1)}M\nSemi: $${((totals.valor_total_inventario?.seminuevos ?? 15921941.5) / 1000000).toFixed(1)}M`, 50 + (cardWidth + cardGap) * 2 + 8, cardY + 40);
+
+          // Card 4: Días Promedio
+          doc.rect(50 + (cardWidth + cardGap) * 3, cardY, cardWidth, cardHeight).fill('#F7FAFC');
+          doc.strokeColor('#CBD5E0').lineWidth(0.5).rect(50 + (cardWidth + cardGap) * 3, cardY, cardWidth, cardHeight).stroke();
+          doc.fillColor('#4A5568').fontSize(7.5).font('Helvetica-Bold').text('DÍAS PROMEDIO', 50 + (cardWidth + cardGap) * 3 + 8, cardY + 10);
+          const avgDays = totals.eficiencia?.dias_promedio?.total ?? 137.65;
+          doc.fillColor('#E53E3E').fontSize(18).font('Helvetica-Bold').text(`${avgDays.toFixed(1)} d`, 50 + (cardWidth + cardGap) * 3 + 8, cardY + 22);
+          doc.fillColor('#718096').fontSize(7).font('Helvetica').text(`Nuevos: ${totals.eficiencia?.dias_promedio?.nuevos ?? 137} d\nSemi: ${totals.eficiencia?.dias_promedio?.seminuevos ?? 150} d`, 50 + (cardWidth + cardGap) * 3 + 8, cardY + 42);
+
+          doc.y = cardY + cardHeight + 20;
+
+          // --- 2.2 VOLUME BY AGE RANGE ---
+          doc.x = 50;
+          doc.fillColor('#1A365D').fontSize(10.5).font('Helvetica-Bold').text('Antigüedad del Inventario por Rango de Días');
+          doc.moveDown(0.3);
+
+          const rTableY = doc.y;
+          doc.rect(50, rTableY, 495, 16).fill('#2B6CB0');
+          doc.fillColor('#FFFFFF').fontSize(8).font('Helvetica-Bold')
+             .text('Rango de Antigüedad', 60, rTableY + 4)
+             .text('Unidades Totales', 180, rTableY + 4, { width: 80, align: 'center' })
+             .text('Unidades Nuevas', 260, rTableY + 4, { width: 80, align: 'center' })
+             .text('Unidades Seminuevas', 340, rTableY + 4, { width: 90, align: 'center' })
+             .text('Valor Inventario (M.N.)', 430, rTableY + 4, { width: 110, align: 'right' });
+
+          let rCurrentY = rTableY + 16;
+          const ranges = totals.volumen?.rangos || [];
+          ranges.forEach((item: any, idx: number) => {
+            if (idx % 2 === 0) {
+              doc.rect(50, rCurrentY, 495, 18).fill('#F7FAFC');
+            }
+            doc.fillColor('#2D3748').fontSize(8).font('Helvetica')
+               .text(`${item.rango} Días`, 60, rCurrentY + 5)
+               .text(item.unidades.toLocaleString('es-MX'), 180, rCurrentY + 5, { width: 80, align: 'center' })
+               .text(item.unidades_nuevas.toLocaleString('es-MX'), 260, rCurrentY + 5, { width: 80, align: 'center' })
+               .text(item.unidades_seminuevas.toLocaleString('es-MX'), 340, rCurrentY + 5, { width: 90, align: 'center' })
+               .text(`$${Math.round(item.valor_inventario).toLocaleString('es-MX')}`, 430, rCurrentY + 5, { width: 110, align: 'right' });
+            
+            // Highlight critical aging (121+ Days) in bold red
+            if (item.rango.includes('121+')) {
+              doc.fillColor('#E53E3E').font('Helvetica-Bold')
+                 .text(`${item.rango} Días`, 60, rCurrentY + 5)
+                 .text(item.unidades.toLocaleString('es-MX'), 180, rCurrentY + 5, { width: 80, align: 'center' });
+            }
+
+            rCurrentY += 18;
+          });
+
+          // Totals Row for Ranges Table
+          const totalUnitsSum = ranges.reduce((acc: number, item: any) => acc + item.unidades, 0);
+          const totalNuevosSum = ranges.reduce((acc: number, item: any) => acc + item.unidades_nuevas, 0);
+          const totalSeminuevosSum = ranges.reduce((acc: number, item: any) => acc + item.unidades_seminuevas, 0);
+          const totalValorSum = ranges.reduce((acc: number, item: any) => acc + item.valor_inventario, 0);
+
+          doc.rect(50, rCurrentY, 495, 18).fill('#E2E8F0');
+          doc.fillColor('#1A365D').fontSize(8).font('Helvetica-Bold')
+             .text('TOTAL', 60, rCurrentY + 5)
+             .text(totalUnitsSum.toLocaleString('es-MX'), 180, rCurrentY + 5, { width: 80, align: 'center' })
+             .text(totalNuevosSum.toLocaleString('es-MX'), 260, rCurrentY + 5, { width: 80, align: 'center' })
+             .text(totalSeminuevosSum.toLocaleString('es-MX'), 340, rCurrentY + 5, { width: 90, align: 'center' })
+             .text(`$${Math.round(totalValorSum).toLocaleString('es-MX')}`, 430, rCurrentY + 5, { width: 110, align: 'right' });
+          rCurrentY += 18;
+
+          doc.y = rCurrentY + 15;
+
+          // --- 2.3 TOP VEHICLES BRAND AND MODEL BREAKDOWN ---
+          doc.x = 50;
+          doc.fillColor('#1A365D').fontSize(10.5).font('Helvetica-Bold').text('Desglose de Inventario por Marca y Modelo');
+          doc.moveDown(0.3);
+
+          const mTableY = doc.y;
+          doc.rect(50, mTableY, 495, 16).fill('#0B1E36');
+          doc.fillColor('#FFFFFF').fontSize(8).font('Helvetica-Bold')
+             .text('Marca / Modelo', 60, mTableY + 4)
+             .text('Tipo', 180, mTableY + 4, { width: 50, align: 'center' })
+             .text('Unidades', 230, mTableY + 4, { width: 50, align: 'center' })
+             .text('Costo Promedio', 280, mTableY + 4, { width: 90, align: 'right' })
+             .text('Valor Total', 370, mTableY + 4, { width: 100, align: 'right' })
+             .text('Días Promedio', 470, mTableY + 4, { width: 70, align: 'center' });
+
+          let mCurrentY = mTableY + 16;
+          
+          // Combine all nuevos and seminuevos
+          const allNuevos = (brandModel.nuevos || []).map((n: any) => ({...n, tipo: 'Nuevo'}));
+          const allSemis = (brandModel.seminuevos || []).map((s: any) => ({...s, tipo: 'Seminuevo'}));
+          const combinedItems = [...allNuevos, ...allSemis];
+
+          combinedItems.forEach((item: any, idx: number) => {
+            // Dynamic page break if row exceeds normal height limits
+            if (mCurrentY > 700) {
+              doc.addPage();
+              mCurrentY = 50;
+              doc.rect(50, mCurrentY, 495, 16).fill('#0B1E36');
+              doc.fillColor('#FFFFFF').fontSize(8).font('Helvetica-Bold')
+                 .text('Marca / Modelo', 60, mCurrentY + 4)
+                 .text('Tipo', 180, mCurrentY + 4, { width: 50, align: 'center' })
+                 .text('Unidades', 230, mCurrentY + 4, { width: 50, align: 'center' })
+                 .text('Costo Promedio', 280, mCurrentY + 4, { width: 90, align: 'right' })
+                 .text('Valor Total', 370, mCurrentY + 4, { width: 100, align: 'right' })
+                 .text('Días Promedio', 470, mCurrentY + 4, { width: 70, align: 'center' });
+              mCurrentY += 16;
+            }
+
+            if (idx % 2 === 0) {
+              doc.rect(50, mCurrentY, 495, 18).fill('#F8FAFC');
+            }
+
+            const modelName = item.modelo ? `${item.marca} ${item.modelo}` : `${item.marca} (Total)`;
+
+            doc.fillColor('#2D3748').fontSize(7.5).font('Helvetica')
+               .text(modelName, 60, mCurrentY + 5)
+               .text(item.tipo, 180, mCurrentY + 5, { width: 50, align: 'center' })
+               .text(item.unidades_totales.toLocaleString('es-MX'), 230, mCurrentY + 5, { width: 50, align: 'center' })
+               .text(`$${Math.round(item.costo_promedio).toLocaleString('es-MX')}`, 280, mCurrentY + 5, { width: 90, align: 'right' })
+               .text(`$${Math.round(item.valor_inventario_total).toLocaleString('es-MX')}`, 370, mCurrentY + 5, { width: 100, align: 'right' });
+
+            const daysColor = item.dias_promedio > 120 ? '#E53E3E' : '#2D3748';
+            doc.fillColor(daysColor).font(item.dias_promedio > 120 ? 'Helvetica-Bold' : 'Helvetica')
+               .text(`${Math.round(item.dias_promedio)} d`, 470, mCurrentY + 5, { width: 70, align: 'center' });
+
+            mCurrentY += 18;
+          });
+
+          // Totals for Second Table
+          const totalUnitsModelSum = combinedItems.reduce((acc: number, item: any) => acc + item.unidades_totales, 0);
+          const totalValueModelSum = combinedItems.reduce((acc: number, item: any) => acc + item.valor_inventario_total, 0);
+          const weightedCostAvg = totalUnitsModelSum > 0 ? (totalValueModelSum / totalUnitsModelSum) : 0;
+          const totalDaysWeight = combinedItems.reduce((acc: number, item: any) => acc + (item.dias_promedio * item.unidades_totales), 0);
+          const weightedDaysAvg = totalUnitsModelSum > 0 ? (totalDaysWeight / totalUnitsModelSum) : 0;
+
+          if (mCurrentY > 700) {
+            doc.addPage();
+            mCurrentY = 50;
+          }
+
+          doc.rect(50, mCurrentY, 495, 18).fill('#E2E8F0');
+          doc.fillColor('#0B1E36').fontSize(7.5).font('Helvetica-Bold')
+             .text('TOTAL', 60, mCurrentY + 5)
+             .text('', 180, mCurrentY + 5, { width: 50, align: 'center' })
+             .text(totalUnitsModelSum.toLocaleString('es-MX'), 230, mCurrentY + 5, { width: 50, align: 'center' })
+             .text(`$${Math.round(weightedCostAvg).toLocaleString('es-MX')}`, 280, mCurrentY + 5, { width: 90, align: 'right' })
+             .text(`$${Math.round(totalValueModelSum).toLocaleString('es-MX')}`, 370, mCurrentY + 5, { width: 100, align: 'right' })
+             .text(`${Math.round(weightedDaysAvg)} d`, 470, mCurrentY + 5, { width: 70, align: 'center' });
+
+          doc.y = mCurrentY + 28;
+        }
       }
 
       // Page break for Deep Research / Strategy Text

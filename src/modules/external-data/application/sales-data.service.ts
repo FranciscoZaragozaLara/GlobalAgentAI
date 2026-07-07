@@ -14,17 +14,35 @@ export class SalesDataService {
   ) {}
 
   /**
+   * Helper method to retry failed HTTP operations with exponential backoff
+   */
+  private async callWithRetry<T>(operationName: string, fn: () => Promise<T>, retries = 3, delayMs = 1000): Promise<T> {
+    for (let i = 0; i < retries; i++) {
+      try {
+        return await fn();
+      } catch (err: any) {
+        if (i === retries - 1) {
+          this.logger.error(`Operation ${operationName} failed after ${retries} attempts. Last error: ${err.message}`);
+          throw err;
+        }
+        this.logger.warn(`[Attempt ${i + 1}/${retries}] Operation ${operationName} failed: ${err.message}. Retrying in ${delayMs}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        delayMs *= 2; // Exponential backoff
+      }
+    }
+    throw new Error(`Retries exhausted for ${operationName}`);
+  }
+
+  /**
    * Retrieves vehicle sales data grouped by model using authenticated Global DMS API key
    */
   async getVentasResumenXModelo(filter: SalesQueryFilter): Promise<SalesRecord[]> {
     const baseUrl = this.configService.get<string>('GLOBAL_DMS_BASE_URL', 'https://www.globaldms.mx/globalapiOracle');
     const url = `${baseUrl}/Kpis/getVentasVehiculos/ResumenxModelo`;
 
-    try {
-      // 1. Retrieve a valid JWT token (it auto-renews dynamically if expired)
+    return this.callWithRetry('getVentasResumenXModelo', async () => {
       const token = await this.authService.getValidToken();
 
-      // 2. Prepare payload mapping default values for optional parameters
       const payload = {
         anio: filter.anio,
         mes: filter.mes,
@@ -49,6 +67,7 @@ export class SalesDataService {
           'Accept': 'text/plain',
           'Authorization': `Bearer ${token}`,
         },
+        timeout: 10000, // 10 seconds timeout
       });
 
       if (response.data && response.data.response === 'OK') {
@@ -56,17 +75,8 @@ export class SalesDataService {
         this.logger.log(`Retrieved ${results.length} sales models records successfully.`);
         return results;
       }
-
-      this.logger.warn(`API returned response not OK: ${response.data?.message}`);
-      return [];
-    } catch (error) {
-      if (error.response) {
-        this.logger.error(`Sales API Request failed (${error.response.status}): ${JSON.stringify(error.response.data)}`);
-      } else {
-        this.logger.error(`Error connecting to Sales API: ${error.message}`);
-      }
-      throw error;
-    }
+      throw new Error(`API returned response not OK: ${response.data?.message}`);
+    });
   }
 
   /**
@@ -109,5 +119,59 @@ export class SalesDataService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Retrieves vehicle inventory summary totals (Nuevos, Seminuevos, Totales)
+   */
+  async getExistenciaNuevosSeminuevosTotales(): Promise<any> {
+    const baseUrl = this.configService.get<string>('GLOBAL_DMS_BASE_URL', 'https://www.globaldms.mx/globalapiOracle');
+    const url = `${baseUrl}/Kpis/getExistenciaVehiculos/NuevosSeminuevosTotales`;
+    const payload = { buscaDistribuidor: 0, idDistribuidor: [] };
+
+    return this.callWithRetry('getExistenciaNuevosSeminuevosTotales', async () => {
+      const token = await this.authService.getValidToken();
+      this.logger.log('Calling getExistenciaVehiculos/NuevosSeminuevosTotales API...');
+      const response = await axios.post(url, payload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/plain',
+          'Authorization': `Bearer ${token}`,
+        },
+        timeout: 10000,
+      });
+
+      if (response.data && response.data.response === 'OK') {
+        return response.data.results;
+      }
+      throw new Error(response.data?.message || 'Response not OK');
+    });
+  }
+
+  /**
+   * Retrieves vehicle inventory Brand and Model summary
+   */
+  async getExistenciaResumenMarcaModelo(): Promise<any> {
+    const baseUrl = this.configService.get<string>('GLOBAL_DMS_BASE_URL', 'https://www.globaldms.mx/globalapiOracle');
+    const url = `${baseUrl}/Kpis/getExistenciaVehiculos/ResumenMarcaModelo`;
+    const payload = { buscaDistribuidor: 0, idDistribuidor: [] };
+
+    return this.callWithRetry('getExistenciaResumenMarcaModelo', async () => {
+      const token = await this.authService.getValidToken();
+      this.logger.log('Calling getExistenciaVehiculos/ResumenMarcaModelo API...');
+      const response = await axios.post(url, payload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/plain',
+          'Authorization': `Bearer ${token}`,
+        },
+        timeout: 10000,
+      });
+
+      if (response.data && response.data.response === 'OK') {
+        return response.data.results;
+      }
+      throw new Error(response.data?.message || 'Response not OK');
+    });
   }
 }
