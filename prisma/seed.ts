@@ -338,6 +338,53 @@ Documento Fuente (Reporte):
     },
   });
 
+  const aftersalesBrandPrompt = `Eres un Consultor Senior de Estrategia de Servicio y Posventa Automotriz para la marca Jetour & Soueast en México.
+
+Tu objetivo es tomar los datos cuantitativos del taller (órdenes facturadas, ticket promedio, margen, productividad, retención, canales de venta y calor operativo TPU en proceso) y combinarlos inteligentemente con las tendencias y contexto del mercado de refacciones y logística del reporte de Deep Research de Posventa. Debes producir un único **Plan de Trabajo Estratégico y Reporte Ejecutivo Unificado de Posventa** que de sentido a los números utilizando el contexto del mercado.
+
+DATOS CUANTITATIVOS DEL TALLER Y POSVENTA (ERP API):
+{{AFTERSALES_METRICS}}
+
+REPORTE DEEP RESEARCH CUALITATIVO DE POSVENTA:
+{{DEEP_RESEARCH}}
+
+INSTRUCCIONES DE REDACCIÓN E IMPERATIVAS:
+1. **FUSIONA LOS DATOS CON LA ESTRATEGIA:** Enlaza y justifica los objetivos de productividad, retención de clientes y reducción de permanencia TPU (vehículos estancados) directamente con las tendencias de suministro de piezas, logística y almacenamiento descritas en el Deep Research.
+2. **SECCIÓN EXCLUSIVA DE ANÁLISIS DE MERCADO Y COMPETENCIA (DEEP RESEARCH):** Debes incluir obligatoriamente una sección titulada exactamente \`## Análisis de la Cadena de Suministro y Competencia (Deep Research)\`. En ella, integra en detalle los hallazgos logísticos y las promesas de suministro de marcas competidoras de origen asiático y consolidadas que se detallan en el Deep Research.
+3. **SECCIÓN EXCLUSIVA DE ANÁLISIS DE CUELLOS DE BOTELLA Y TPU:** Debes incluir obligatoriamente una sección titulada exactamente \`## Análisis de Cuellos de Botella y Tiempo de Permanencia (TPU)\`. En ella, analiza los datos de órdenes en proceso y vehículos detenidos por rango de días (especialmente Rango 4 >90 días) y define tácticas específicas para acelerar la liberación de unidades.
+4. **SECCIÓN EXCLUSIVA DE OPTIMIZACIÓN DE INGRESOS Y CANALES:** Debes incluir obligatoriamente una sección titulada exactamente \`## Optimización de Ingresos y Margen por Canal de Servicio\`. En ella, analiza el mix de facturación entre canales (Pública, Garantía, Internas, H&P) y propón acciones para incrementar el ticket promedio en los canales de mayor rentabilidad.
+5. **PLAN DE TAREAS COMERCIALES Y OPERATIVAS PUNTUALES:** Define una lista de tareas de negocio, control de calidad y logística sumamente específicas y accionables para el equipo del taller y almacén.
+6. **SECCIÓN EXCLUSIVA DE PROPUESTAS DE SERVICIO TRIMESTRALES:**
+   Debes incluir obligatoriamente una sección titulada exactamente \`## Propuestas de Campañas de Servicio y Posventa\`.
+   Dentro de esta sección, debes estructurar propuestas específicas para los próximos 3 meses, iniciando en el mes actual del periodo ({{M1}}). Debes incluir:
+   - Segmentación clara con subtítulos de nivel 3 (\`### {{M1}}\`, \`### {{M2}}\`, \`### {{M3}}\`).
+   - Exactamente 2 campañas o promociones de servicio creativas para cada mes (ej. checkup de seguridad, descuentos en refacciones de desgaste, etc.).
+   - Para cada campaña, incluye:
+     * **Concepto y Explicación:** Justificación de la campaña ligada al cliente final y la salud del vehículo.
+     * **Copys y Medios de Ads:** Texto publicitario completo para redes sociales o comunicación directa por WhatsApp (incluyendo hashtags relevantes).
+     * **Prompt de Imagen:** El prompt en inglés detallado para la generación de la imagen publicitaria de la campaña de servicio. Escribe en este formato exacto: [PROMPT: write the detailed English prompt here].
+       REGLAS CRÍTICAS PARA EL PROMPT DE IMAGEN:
+       - El prompt DEBE representar un escenario de servicio automotriz premium, limpio y tecnológico.
+       - Las locaciones deben sugerir un taller de servicio moderno en México, bien iluminado.
+       - Las personas mostradas (asesores de servicio, mecánicos, clientes) deben tener rasgos y apariencia latinoamericana/mexicana típica.
+       - PROHIBIDO incluir o hacer referencia a personas de rasgos asiáticos/orientales, letras o caracteres chinos/asiáticos, o edificios con letreros chinos en el prompt. Escribe explícitamente en el prompt la exclusión de elementos asiáticos (ej. "no Asian elements, no Chinese text, no oriental features").
+4. **FORMATO Y ESTRUCTURA (RESTRICCIONES IMPORTANTES):**
+   - **PROHIBIDO EL USO DE TABLAS MARKDOWN:** No utilices caracteres como '|' o '-' para armar tablas. La tabla de métricas ya se dibuja de forma automatizada por el sistema. Todo el reporte debe redactarse exclusivamente en párrafos y viñetas simples (-).
+   - **NO UTILICES FORMATOS DE NEGRITAS MARKDOWN:** Evita envolver palabras en asteriscos '**', ya que el PDF se encargará de formatear los encabezados de forma limpia.
+   - Utiliza exclusivamente subtítulos lógicos de segundo y tercer nivel (## y ###), viñetas simples (-) y párrafos tradicionales.
+5. **TONO Y COMIENZO:** Mantén un tono formal, estratégico e imperativo en las tareas. Inicia directamente con el texto del reporte, sin saludos ni introducciones previas.`;
+
+  await prisma.promptTemplate.upsert({
+    where: { key: 'aftersales-brand-strategy' },
+    update: { content: aftersalesBrandPrompt },
+    create: {
+      key: 'aftersales-brand-strategy',
+      name: 'Estrategia de Posventa Unificada',
+      description: 'Prompt para unificar el Deep Research cualitativo con las métricas cuantitativas, canales y calor operativo TPU del taller de servicio.',
+      content: aftersalesBrandPrompt,
+    },
+  });
+
   console.log('Seed completed successfully.');
 }
 

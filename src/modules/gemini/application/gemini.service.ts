@@ -22,10 +22,12 @@ export class GeminiService {
         : path.join(process.cwd(), credentialsPath);
       if (fs.existsSync(fullPath)) {
         try {
+          process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
           const creds = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
           if (creds.project_id) {
             projectId = creds.project_id;
             useVertex = true;
+            process.env.GOOGLE_APPLICATION_CREDENTIALS = fullPath;
           }
         } catch (e: any) {
           this.logger.error(`Error reading Google Credentials JSON: ${e.message}`);
@@ -55,10 +57,16 @@ export class GeminiService {
    */
   async generateText(prompt: string, model: string = 'gemini-3.1-pro'): Promise<string> {
     try {
-      this.logger.log(`Invoking Gemini Model: ${model}...`);
+      let activeModel = model;
+      if (activeModel === 'gemini-3.1-pro') {
+        activeModel = 'gemini-2.5-pro';
+      } else if (activeModel === 'gemini-3.1-flash') {
+        activeModel = 'gemini-2.5-flash';
+      }
+      this.logger.log(`Invoking Gemini Model: ${activeModel} (requested: ${model})...`);
       
       const response = await this.ai.models.generateContent({
-        model: model,
+        model: activeModel,
         contents: prompt,
         config: {
           // Low temperature is ideal for data analysis/structuring tasks
@@ -182,31 +190,24 @@ Hash de Respuesta: ${outputHash}
     return metadataHeader + outputText;
   }
 
-  /**
-   * Generates an image using Google Imagen 3
-   */
-  async generateImage(prompt: string, model: string = 'imagen-4.0-generate-001'): Promise<Buffer> {
+  async generateImage(prompt: string, model: string = 'gemini-3.1-flash-image'): Promise<Buffer> {
     try {
-      this.logger.log(`Invoking Imagen Model: ${model} with prompt: ${prompt}...`);
-      const response = await this.ai.models.generateImages({
+      this.logger.log(`Invoking Gemini Image Model: ${model} with prompt: ${prompt}...`);
+      const response = await this.ai.models.generateContent({
         model: model,
-        prompt: prompt,
-        config: {
-          numberOfImages: 1,
-          outputMimeType: 'image/jpeg',
-          aspectRatio: '16:9', // perfect aspect ratio for widescreen ads
-        }
+        contents: prompt,
       });
 
-      const firstImage = response.generatedImages?.[0];
-      if (!firstImage || !firstImage.image || !firstImage.image.imageBytes) {
-        throw new Error('Imagen API did not return valid image bytes.');
+      const part = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData && p.inlineData.data);
+      if (!part || !part.inlineData || !part.inlineData.data) {
+        this.logger.error(`Gemini Image API response structure: ${JSON.stringify(response)}`);
+        throw new Error('Gemini Image API did not return valid image bytes.');
       }
 
-      const base64Bytes = firstImage.image.imageBytes;
+      const base64Bytes = part.inlineData.data;
       return Buffer.from(base64Bytes, 'base64');
     } catch (error) {
-      this.logger.error(`Error calling Imagen API: ${error.message}`, error.stack);
+      this.logger.error(`Error calling Gemini Image API: ${error.message}`, error.stack);
       throw error;
     }
   }

@@ -1,3 +1,19 @@
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+import * as fs from 'fs';
+
+// Load env variables and set absolute path for Google credentials
+dotenv.config();
+const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+if (credentialsPath) {
+  const fullPath = path.isAbsolute(credentialsPath)
+    ? credentialsPath
+    : path.join(process.cwd(), credentialsPath);
+  if (fs.existsSync(fullPath)) {
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = fullPath;
+  }
+}
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';

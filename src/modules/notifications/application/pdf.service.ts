@@ -72,17 +72,23 @@ export class PdfService {
 
       // Explicitly position doc.y to avoid any text overlap with the banner image
       doc.y = imageStartY + imageHeight + 30;
+      // Check if it is Aftersales based on metrics properties
+      const isAftersales = metrics && (metrics.channels || metrics.tpuHeatmap || !metrics.comparison);
+      const docTitle = isAftersales ? 'PLAN ESTRATÉGICO DE POSVENTA' : 'PLAN ESTRATÉGICO DE VENTAS';
+      const docSubtitle = isAftersales ? `Estrategia de Logística y Posventa — ${cleanMonth} ${year}` : `Estrategia Comercial y Objetivos — ${cleanMonth} ${year}`;
+      const authorText = isAftersales ? 'Corporativo de Posventa y Logística' : 'Corporativo Ventas Nacionales';
+      const metricsText = isAftersales ? 'Órdenes de Servicio y Taller' : 'Unidades de Venta Fisicas';
 
       // Title & Subtitle
       doc.fillColor('#1A365D')
          .fontSize(24)
          .font('Helvetica-Bold')
-         .text('PLAN ESTRATÉGICO DE VENTAS', { align: 'left' });
+         .text(docTitle, { align: 'left' });
       
       doc.fillColor('#2B6CB0')
          .fontSize(16)
          .font('Helvetica')
-         .text(`Estrategia Comercial y Objetivos — ${cleanMonth} ${year}`, { align: 'left' });
+         .text(docSubtitle, { align: 'left' });
       
       doc.moveDown(1.5);
       doc.strokeColor('#CBD5E0')
@@ -101,193 +107,608 @@ export class PdfService {
          .font('Helvetica')
          .text(`Agencia/Canal: ${agencyName}`, 70, doc.y + 35)
          .text(`Fecha de Emisión: ${new Date().toLocaleDateString()}`, 70, doc.y + 50)
-         .text(`Moneda/Métricas: Unidades de Venta Fisicas`, 320, doc.y + 35)
-         .text(`Autor: Corporativo Ventas Nacionales`, 320, doc.y + 50);
+         .text(`Moneda/Métricas: ${metricsText}`, 320, doc.y + 35)
+         .text(`Autor: ${authorText}`, 320, doc.y + 50);
 
       doc.y += 45; // Reset Y position manually below metadata card
 
       // Page break for the metrics and analytics
       doc.addPage();
 
-      // --- PAGE 2: ANÁLISIS DE VENTAS Y METAS ---
-      doc.fillColor('#1A365D')
-         .fontSize(16)
-         .font('Helvetica-Bold')
-         .text('1. Indicadores de Ventas e Históricos Comparativos');
-      
-      const monthsEs = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-      const monthIdx = monthsEs.findIndex(m => cleanMonth.toLowerCase().includes(m.toLowerCase()));
-      let prevMonthsNames = '';
-      if (monthIdx !== -1) {
-        const p1 = monthsEs[(monthIdx - 3 + 12) % 12].substring(0, 3);
-        const p2 = monthsEs[(monthIdx - 2 + 12) % 12].substring(0, 3);
-        const p3 = monthsEs[(monthIdx - 1 + 12) % 12].substring(0, 3);
-        prevMonthsNames = `${p1}-${p2}-${p3}`;
-      } else {
-        prevMonthsNames = 'Mar-Abr-May';
-      }
-
-      doc.moveDown(0.5);
-      doc.fillColor('#4A5568')
-         .fontSize(10)
-         .font('Helvetica')
-         .text(`Comparativa del volumen acumulado de ventas del último trimestre (${prevMonthsNames}) contra el año anterior, mes equivalente de ${year - 1} y objetivo proyectado:`);
-      
-      doc.moveDown(1.5);
-
-      // Table Header
-      const tableStartY = doc.y;
-      doc.rect(50, tableStartY, 495, 22).fill('#2B6CB0');
-      doc.fillColor('#FFFFFF')
-         .fontSize(9)
-         .font('Helvetica-Bold')
-         .text('Modelo', 60, tableStartY + 7)
-         .text(`Trimestre ${year - 1}`, 150, tableStartY + 7, { width: 70, align: 'center' })
-         .text(`Trimestre ${year}`, 230, tableStartY + 7, { width: 70, align: 'center' })
-         .text('Crec. YoY %', 310, tableStartY + 7, { width: 60, align: 'center' })
-         .text(`${cleanMonth} ${year - 1}`, 380, tableStartY + 7, { width: 70, align: 'center' })
-         .text(`Meta ${cleanMonth} ${year}`, 460, tableStartY + 7, { width: 75, align: 'center' });
-
-      let currentY = tableStartY + 22;
-
-      // Sort comparison records descending by current year's sales (Trimestre 2026)
-      const sortedComparison = [...metrics.comparison].sort((a: any, b: any) => b.sales3Months2026 - a.sales3Months2026);
-
-      // Table Rows
-      sortedComparison.forEach((item: any, index: number) => {
-        // Zebra striping
-        if (index % 2 === 0) {
-          doc.rect(50, currentY, 495, 20).fill('#F7FAFC');
-        }
-        
-        doc.fillColor('#2D3748')
-           .fontSize(9)
-           .font('Helvetica')
-           .text(item.model, 60, currentY + 5)
-           .text(item.sales3Months2025.toString(), 150, currentY + 5, { width: 70, align: 'center' })
-           .text(item.sales3Months2026.toString(), 230, currentY + 5, { width: 70, align: 'center' });
-
-        const growthColor = item.growthRate >= 0 ? '#48BB78' : '#E53E3E';
-        doc.fillColor(growthColor)
-           .font('Helvetica-Bold')
-           .text(`${item.growthRate}%`, 310, currentY + 5, { width: 60, align: 'center' });
-
-        doc.fillColor('#2D3748')
-           .font('Helvetica')
-           .text(item.june2025.toString(), 380, currentY + 5, { width: 70, align: 'center' });
-
+      if (isAftersales) {
+        // --- PAGE 2 (POSVENTA): TABLA OPERATIVA Y DE CANALES ---
         doc.fillColor('#1A365D')
+           .fontSize(14)
            .font('Helvetica-Bold')
-           .text(item.suggestedGoal2026.toString(), 460, currentY + 5, { width: 75, align: 'center' });
+           .text('1. Indicadores de Operación del Taller (Mes vs Mes Anterior vs YTD)');
+        
+        doc.moveDown(0.5);
+        doc.fillColor('#4A5568')
+           .fontSize(9.5)
+           .font('Helvetica')
+           .text(`Comparativa del desempeño operativo del taller y rentabilidad de posventa para el mes de consulta, periodo inmediato anterior e histórico acumulado anual (YTD) actual:`);
+        
+        doc.moveDown(1);
 
-        currentY += 20;
-      });
+        // Calculate actual months representation for the columns
+        const monthsEs = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        const currentMonthIdx = monthsEs.findIndex(m => month.toLowerCase().includes(m.toLowerCase()));
+        const currentYearMatch = month.match(/\d{4}/);
+        const currentYear = currentYearMatch ? Number(currentYearMatch[0]) : year;
 
-      // Total Row
-      doc.rect(50, currentY, 495, 22).fill('#E2E8F0');
-      doc.fillColor('#1A365D')
-         .fontSize(9)
-         .font('Helvetica-Bold')
-         .text('TOTAL MARCA', 60, currentY + 6)
-         .text(metrics.totals.sales3Months2025.toString(), 150, currentY + 6, { width: 70, align: 'center' })
-         .text(metrics.totals.sales3Months2026.toString(), 230, currentY + 6, { width: 70, align: 'center' });
+        let reportMonthIdx = currentMonthIdx - 1;
+        let reportYear = currentYear;
+        if (reportMonthIdx < 0) {
+          reportMonthIdx = 11;
+          reportYear = currentYear - 1;
+        }
+        const reportMonthName = monthsEs[reportMonthIdx];
 
-      const totalGrowthColor = metrics.totals.growthRate >= 0 ? '#48BB78' : '#E53E3E';
-      doc.fillColor(totalGrowthColor)
-         .text(`${metrics.totals.growthRate}%`, 310, currentY + 6, { width: 60, align: 'center' });
+        let priorReportMonthIdx = reportMonthIdx - 1;
+        let priorReportYear = reportYear;
+        if (priorReportMonthIdx < 0) {
+          priorReportMonthIdx = 11;
+          priorReportYear = reportYear - 1;
+        }
+        const priorReportMonthName = monthsEs[priorReportMonthIdx];
 
-      doc.fillColor('#1A365D')
-         .text(metrics.totals.june2025.toString(), 380, currentY + 6, { width: 70, align: 'center' })
-         .text(metrics.totals.suggestedGoal2026.toString(), 460, currentY + 6, { width: 75, align: 'center' });
-
-      currentY += 40;
-      doc.y = currentY;
-
-      // --- GRÁFICA VECTORIAL DE BARRAS DE OBJETIVOS (PDFKit Direct Drawing) ---
-      doc.x = 50; // Reset X to prevent right alignment overlap
-      doc.fillColor('#1A365D')
-         .fontSize(12)
-         .font('Helvetica-Bold')
-         .text('Gráfico Comparativo de Metas de Ventas por Modelo');
-      
-      doc.moveDown(0.5);
-
-      const chartStartY = doc.y;
-      const chartHeight = 130;
-      const barHeight = 12;
-      const chartModels = metrics.comparison.slice(0, 5); // top 5 models
-
-      // Draw Y and X axis
-      doc.strokeColor('#CBD5E0')
-         .lineWidth(1.5)
-         .moveTo(150, chartStartY)
-         .lineTo(150, chartStartY + chartHeight) // Y Axis
-         .lineTo(480, chartStartY + chartHeight) // X Axis
-         .stroke();
-
-      // Find max sales/goals for scaling
-      const maxVal = Math.max(
-        ...chartModels.map((m: any) => Math.max(m.sales3Months2026 / 3, m.suggestedGoal2026)),
-        10
-      );
-      const scaleWidth = 300;
-      const scaleFactor = scaleWidth / maxVal;
-
-      chartModels.forEach((item: any, idx: number) => {
-        const yOffset = chartStartY + 15 + (idx * 22);
-
-        // Draw model label
-        doc.fillColor('#2D3748')
+        // Draw Table 1: Temporal KPIs comparison
+        const t1Y = doc.y;
+        doc.rect(50, t1Y, 495, 22).fill('#2B6CB0');
+        doc.fillColor('#FFFFFF')
            .fontSize(8)
            .font('Helvetica-Bold')
-           .text(item.model, 60, yOffset + 3, { width: 85, align: 'right' });
+           .text('Métrica / KPI', 60, t1Y + 7)
+           .text(`Mes Anterior\n(${priorReportMonthName} ${priorReportYear})`, 200, t1Y + 3, { width: 80, align: 'center' })
+           .text(`${reportMonthName} ${reportYear}`, 290, t1Y + 7, { width: 80, align: 'center' })
+           .text('Var MoM %', 380, t1Y + 7, { width: 70, align: 'center' })
+           .text('Acumulado Anual', 460, t1Y + 7, { width: 80, align: 'center' });
 
-        // Calculate values (recent monthly average vs target)
-        const recentAvgVal = Math.round(item.sales3Months2026 / 3);
-        const targetVal = item.suggestedGoal2026;
+        let currentY = t1Y + 22;
 
-        const wAvg = recentAvgVal * scaleFactor;
-        const wTarget = targetVal * scaleFactor;
+        const tm = metrics?.targetMonth || {};
+        const pm = metrics?.priorMonth || {};
+        const ytd = metrics?.ytd || {};
 
-        // Draw Recent Average Bar (light grey/blue)
-        doc.rect(151, yOffset, Math.max(wAvg, 1), barHeight / 2).fill('#A0AEC0');
+        const kpis = [
+          {
+            label: 'Órdenes Facturadas',
+            key: 'cantidadOrdenesReparacionFacturadas',
+            format: (v: any) => v ? Number(v).toLocaleString('es-MX') : '0',
+            isCurrency: false,
+          },
+          {
+            label: 'Ingresos Facturados (con IVA)',
+            key: 'ingresosOnedesReparacionFacturadasConIVA',
+            format: (v: any) => v ? `$${Number(v).toLocaleString('es-MX', { maximumFractionDigits: 0 })}` : '$0',
+            isCurrency: true,
+          },
+          {
+            label: 'Ticket Promedio',
+            key: 'ticketPromedioOrdenesReparacionFacturadas',
+            format: (v: any) => v ? `$${Number(v).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '$0.00',
+            isCurrency: true,
+          },
+          {
+            label: 'Margen por Servicio',
+            key: 'margenPorServicio',
+            format: (v: any) => v ? `${Number(v).toFixed(2)}%` : '0.00%',
+            isPercent: true,
+          },
+          {
+            label: 'Productividad General',
+            key: 'productividad',
+            format: (v: any) => v ? `${Number(v).toFixed(2)}%` : '0.00%',
+            isPercent: true,
+          },
+          {
+            label: 'Retención Clientes Recurrentes',
+            key: 'retencionClientesRecurrentes',
+            format: (v: any) => v ? `${Number(v).toFixed(2)}%` : '0.00%',
+            isPercent: true,
+          }
+        ];
 
-        // Draw Target Bar (blue acento)
-        doc.rect(151, yOffset + (barHeight / 2) + 1, Math.max(wTarget, 1), barHeight / 2).fill('#2B6CB0');
+        kpis.forEach((kpi, idx) => {
+          if (idx % 2 === 0) {
+            doc.rect(50, currentY, 495, 18).fill('#F7FAFC');
+          }
 
-        // Values label next to the bars
+          const tmVal = Number(tm[kpi.key] || 0);
+          const pmVal = Number(pm[kpi.key] || 0);
+          const ytdVal = Number(ytd[kpi.key] || 0);
+
+          let diffPercent = 0;
+          if (pmVal > 0) {
+            diffPercent = ((tmVal - pmVal) / pmVal) * 100;
+          }
+
+          const diffStr = pmVal > 0 ? `${diffPercent >= 0 ? '+' : ''}${diffPercent.toFixed(1)}%` : 'N/D';
+          const diffColor = diffPercent >= 0 ? '#48BB78' : '#E53E3E';
+
+          doc.fillColor('#2D3748')
+             .fontSize(8.5)
+             .font('Helvetica')
+             .text(kpi.label, 60, currentY + 4)
+             .text(kpi.format(pm[kpi.key]), 200, currentY + 4, { width: 80, align: 'center' })
+             .text(kpi.format(tm[kpi.key]), 290, currentY + 4, { width: 80, align: 'center' });
+
+          doc.fillColor(diffColor)
+             .font('Helvetica-Bold')
+             .text(diffStr, 380, currentY + 4, { width: 70, align: 'center' });
+
+          doc.fillColor('#1A365D')
+             .font('Helvetica-Bold')
+             .text(kpi.format(ytd[kpi.key]), 460, currentY + 4, { width: 80, align: 'center' });
+
+          currentY += 18;
+        });
+
+        currentY += 15;
+        doc.y = currentY;
+
+        // Draw Table 2: Desglose por canal de ventas
+        doc.x = 50; // Reset X to prevent messy right alignment bugs
+        doc.fillColor('#1A365D')
+           .fontSize(11)
+           .font('Helvetica-Bold')
+           .text('2. Desglose de Operaciones por Canal de Servicio');
+
+        doc.moveDown(0.4);
+
+        const t2Y = doc.y;
+        doc.rect(50, t2Y, 495, 18).fill('#1A365D');
+        doc.fillColor('#FFFFFF')
+           .fontSize(8)
+           .font('Helvetica-Bold')
+           .text('Canal de Servicio', 60, t2Y + 4)
+           .text('Órdenes', 180, t2Y + 4, { width: 70, align: 'center' })
+           .text('Ingresos (con IVA)', 260, t2Y + 4, { width: 100, align: 'center' })
+           .text('Ticket Promedio', 370, t2Y + 4, { width: 90, align: 'center' })
+           .text('Margen de Utilidad', 470, t2Y + 4, { width: 70, align: 'center' });
+
+        currentY = t2Y + 18;
+
+        const channelsList = metrics?.channels || [];
+        channelsList.forEach((chan: any, idx: number) => {
+          if (idx % 2 === 0) {
+            doc.rect(50, currentY, 495, 16).fill('#F7FAFC');
+          }
+
+          doc.x = 50; // Reset X for channel row print
+          doc.fillColor('#2D3748')
+             .fontSize(8)
+             .font('Helvetica')
+             .text(chan.canalVentas, 60, currentY + 4)
+             .text(Number(chan.cantidadOrdenesTrabajoFacturadas).toString(), 180, currentY + 4, { width: 70, align: 'center' })
+             .text(`$${Number(chan.ingresosOrdenesTrabajoFacturadasConIVA).toLocaleString('es-MX', { maximumFractionDigits: 0 })}`, 260, currentY + 4, { width: 100, align: 'center' })
+             .text(`$${Number(chan.ticketPromedioOrdenesTrabajoFacturadas).toLocaleString('es-MX', { maximumFractionDigits: 0 })}`, 370, currentY + 4, { width: 90, align: 'center' })
+             .text(`${Number(chan.margenOrdenesTrabajoFacturadas).toFixed(1)}%`, 470, currentY + 4, { width: 70, align: 'center' });
+
+          currentY += 16;
+        });
+
+        // Calculate Totals for Channel Breakdown
+        const totalOrders = channelsList.reduce((acc: number, c: any) => acc + (Number(c.cantidadOrdenesTrabajoFacturadas) || 0), 0);
+        const totalIngresosConIva = channelsList.reduce((acc: number, c: any) => acc + (Number(c.ingresosOrdenesTrabajoFacturadasConIVA) || 0), 0);
+        const totalIngresosSinIva = channelsList.reduce((acc: number, c: any) => acc + (Number(c.ingresosOrdenesTrabajoFacturadasSinIVA) || 0), 0);
+        const totalUtilidad = channelsList.reduce((acc: number, c: any) => acc + (Number(c.utilidadOrdenesTrabajoFacturadas) || 0), 0);
+        
+        const avgTicket = totalOrders > 0 ? (totalIngresosConIva / totalOrders) : 0;
+        const avgMargin = totalIngresosSinIva > 0 ? (totalUtilidad / totalIngresosSinIva * 100) : 0;
+
+        // Draw Totals Row
+        doc.rect(50, currentY, 495, 18).fill('#EDF2F7');
+        doc.x = 50; // Reset X for totals row
+        doc.fillColor('#1A365D')
+           .fontSize(8)
+           .font('Helvetica-Bold')
+           .text('TOTAL MARCA', 60, currentY + 5)
+           .text(totalOrders.toLocaleString('es-MX'), 180, currentY + 5, { width: 70, align: 'center' })
+           .text(`$${Math.round(totalIngresosConIva).toLocaleString('es-MX')}`, 260, currentY + 5, { width: 100, align: 'center' })
+           .text(`$${Math.round(avgTicket).toLocaleString('es-MX')}`, 370, currentY + 5, { width: 90, align: 'center' })
+           .text(`${avgMargin.toFixed(1)}%`, 470, currentY + 5, { width: 70, align: 'center' });
+        
+        currentY += 18;
+
+        // Let's add a page break for the charts and heatmap
+        doc.addPage();
+
+        // Section 3: TPU en Proceso (Abiertas)
+        doc.x = 50; // Reset X to prevent messy right alignment bugs
+        doc.fillColor('#1A365D')
+           .fontSize(10.5)
+           .font('Helvetica-Bold')
+           .text('3. Semáforo de Permanencia Crítica en Taller (TPU - Órdenes Abiertas en Proceso)');
+
+        doc.moveDown(0.3);
+
+        let t3Y = doc.y;
+        doc.rect(50, t3Y, 495, 18).fill('#E53E3E');
+        doc.fillColor('#FFFFFF')
+           .fontSize(8)
+           .font('Helvetica-Bold')
+           .text('Distribuidor / Agencia', 60, t3Y + 4)
+           .text('En Proceso Total', 230, t3Y + 4, { width: 80, align: 'center' })
+           .text('R1 (1-15 d)', 310, t3Y + 4, { width: 50, align: 'center' })
+           .text('R2 (16-30 d)', 360, t3Y + 4, { width: 50, align: 'center' })
+           .text('R3 (31-90 d)', 410, t3Y + 4, { width: 50, align: 'center' })
+           .text('R4 (>90 días)', 470, t3Y + 4, { width: 70, align: 'center' });
+
+        currentY = t3Y + 18;
+
+        const openTpuRecords = [...(metrics?.tpuEnProceso || [])]
+          .sort((a, b) => Number(b.cantidadOrdenesTrabajoEnProcesoTotal) - Number(a.cantidadOrdenesTrabajoEnProcesoTotal));
+
+        openTpuRecords.forEach((rec: any, idx: number) => {
+          // Dynamic Page Break check
+          if (currentY > 730) {
+            doc.addPage();
+            const newT3Y = doc.y;
+            doc.rect(50, newT3Y, 495, 18).fill('#E53E3E');
+            doc.fillColor('#FFFFFF')
+               .fontSize(8)
+               .font('Helvetica-Bold')
+               .text('Distribuidor / Agencia', 60, newT3Y + 4)
+               .text('En Proceso Total', 230, newT3Y + 4, { width: 80, align: 'center' })
+               .text('R1 (1-15 d)', 310, newT3Y + 4, { width: 50, align: 'center' })
+               .text('R2 (16-30 d)', 360, newT3Y + 4, { width: 50, align: 'center' })
+               .text('R3 (31-90 d)', 410, newT3Y + 4, { width: 50, align: 'center' })
+               .text('R4 (>90 días)', 470, newT3Y + 4, { width: 70, align: 'center' });
+            currentY = newT3Y + 18;
+          }
+
+          if (idx % 2 === 0) {
+            doc.rect(50, currentY, 495, 24).fill('#FFF5F5');
+          }
+
+          const totalVal = Number(rec.cantidadOrdenesTrabajoEnProcesoTotal) || 0;
+
+          const formatTpu = (val: any) => {
+            const num = Number(val) || 0;
+            if (totalVal <= 0) return `${num}\n(0%)`;
+            const pct = ((num / totalVal) * 100).toFixed(1);
+            return `${num}\n(${pct}%)`;
+          };
+
+          doc.x = 50; // Reset X coordinate for line draw
+          doc.fillColor('#2D3748')
+             .fontSize(7)
+             .font('Helvetica')
+             .text(rec.dealer.replace('JETOUR SOUEAST ', ''), 60, currentY + 4)
+             .text(rec.cantidadOrdenesTrabajoEnProcesoTotal, 230, currentY + 4, { width: 80, align: 'center' })
+             .text(formatTpu(rec.cantidadOrdenesTrabajoEnProcesoRango1), 310, currentY + 4, { width: 50, align: 'center' })
+             .text(formatTpu(rec.cantidadOrdenesTrabajoEnProcesoRango2), 360, currentY + 4, { width: 50, align: 'center' })
+             .text(formatTpu(rec.cantidadOrdenesTrabajoEnProcesoRango3), 410, currentY + 4, { width: 50, align: 'center' });
+
+          const r4Val = Number(rec.cantidadOrdenesTrabajoEnProcesoRango4);
+          doc.fillColor(r4Val > 0 ? '#E53E3E' : '#2D3748')
+             .font(r4Val > 0 ? 'Helvetica-Bold' : 'Helvetica')
+             .text(formatTpu(rec.cantidadOrdenesTrabajoEnProcesoRango4), 470, currentY + 4, { width: 70, align: 'center' });
+
+          currentY += 24;
+        });
+
+        // Calculate open TPU totals
+        const openTotalMarca = openTpuRecords.reduce((acc: number, r: any) => acc + (Number(r.cantidadOrdenesTrabajoEnProcesoTotal) || 0), 0);
+        const openR1Total = openTpuRecords.reduce((acc: number, r: any) => acc + (Number(r.cantidadOrdenesTrabajoEnProcesoRango1) || 0), 0);
+        const openR2Total = openTpuRecords.reduce((acc: number, r: any) => acc + (Number(r.cantidadOrdenesTrabajoEnProcesoRango2) || 0), 0);
+        const openR3Total = openTpuRecords.reduce((acc: number, r: any) => acc + (Number(r.cantidadOrdenesTrabajoEnProcesoRango3) || 0), 0);
+        const openR4Total = openTpuRecords.reduce((acc: number, r: any) => acc + (Number(r.cantidadOrdenesTrabajoEnProcesoRango4) || 0), 0);
+
+        const formatOpenTotalTpu = (val: number) => {
+          if (openTotalMarca <= 0) return `${val}\n(0%)`;
+          const pct = ((val / openTotalMarca) * 100).toFixed(1);
+          return `${val}\n(${pct}%)`;
+        };
+
+        // Draw Open Totals Row
+        doc.rect(50, currentY, 495, 24).fill('#EDF2F7');
+        doc.x = 50; // Reset X coordinate
+        doc.fillColor('#E53E3E')
+           .fontSize(7)
+           .font('Helvetica-Bold')
+           .text('TOTAL MARCA', 60, currentY + 4)
+           .text(openTotalMarca.toLocaleString('es-MX'), 230, currentY + 4, { width: 80, align: 'center' })
+           .text(formatOpenTotalTpu(openR1Total), 310, currentY + 4, { width: 50, align: 'center' })
+           .text(formatOpenTotalTpu(openR2Total), 360, currentY + 4, { width: 50, align: 'center' })
+           .text(formatOpenTotalTpu(openR3Total), 410, currentY + 4, { width: 50, align: 'center' })
+           .text(formatOpenTotalTpu(openR4Total), 470, currentY + 4, { width: 70, align: 'center' });
+        
+        currentY += 24;
+
+        currentY += 20;
+        doc.y = currentY;
+
+        // Section 4: TPU Facturadas (YTD)
+        doc.x = 50; // Reset X coordinates to avoid messy alignment
+        if (doc.y > 670) {
+          doc.addPage();
+        }
+
+        doc.fillColor('#1A365D')
+           .fontSize(10.5)
+           .font('Helvetica-Bold')
+           .text('4. Permanencia de Órdenes de Servicio Facturadas (Acumulado Anual YTD)');
+
+        doc.moveDown(0.3);
+
+        const t4Y = doc.y;
+        doc.rect(50, t4Y, 495, 18).fill('#2B6CB0');
+        doc.fillColor('#FFFFFF')
+           .fontSize(8)
+           .font('Helvetica-Bold')
+           .text('Distribuidor / Agencia', 60, t4Y + 4)
+           .text('Facturadas Total', 230, t4Y + 4, { width: 80, align: 'center' })
+           .text('R1 (1-15 d)', 310, t4Y + 4, { width: 50, align: 'center' })
+           .text('R2 (16-30 d)', 360, t4Y + 4, { width: 50, align: 'center' })
+           .text('R3 (31-90 d)', 410, t4Y + 4, { width: 50, align: 'center' })
+           .text('R4 (>90 días)', 470, t4Y + 4, { width: 70, align: 'center' });
+
+        currentY = t4Y + 18;
+
+        const billedTpuRecords = [...(metrics?.tpuFacturadas || [])]
+          .sort((a, b) => Number(b.cantidadOrdenesTrabajoFacturadasTotal || 0) - Number(a.cantidadOrdenesTrabajoFacturadasTotal || 0));
+
+        billedTpuRecords.forEach((rec: any, idx: number) => {
+          // Dynamic Page Break check
+          if (currentY > 730) {
+            doc.addPage();
+            const newT4Y = doc.y;
+            doc.rect(50, newT4Y, 495, 18).fill('#2B6CB0');
+            doc.fillColor('#FFFFFF')
+               .fontSize(8)
+               .font('Helvetica-Bold')
+               .text('Distribuidor / Agencia', 60, newT4Y + 4)
+               .text('Facturadas Total', 230, newT4Y + 4, { width: 80, align: 'center' })
+               .text('R1 (1-15 d)', 310, newT4Y + 4, { width: 50, align: 'center' })
+               .text('R2 (16-30 d)', 360, newT4Y + 4, { width: 50, align: 'center' })
+               .text('R3 (31-90 d)', 410, newT4Y + 4, { width: 50, align: 'center' })
+               .text('R4 (>90 días)', 470, newT4Y + 4, { width: 70, align: 'center' });
+            currentY = newT4Y + 18;
+          }
+
+          if (idx % 2 === 0) {
+            doc.rect(50, currentY, 495, 24).fill('#F7FAFC');
+          }
+
+          const totalVal = Number(rec.cantidadOrdenesTrabajoFacturadasTotal) || 0;
+
+          const formatTpu = (val: any) => {
+            const num = Number(val) || 0;
+            if (totalVal <= 0) return `${num}\n(0%)`;
+            const pct = ((num / totalVal) * 100).toFixed(1);
+            return `${num}\n(${pct}%)`;
+          };
+
+          doc.x = 50; // Reset X coordinates for line draw
+          doc.fillColor('#2D3748')
+             .fontSize(7)
+             .font('Helvetica')
+             .text(rec.dealer.replace('JETOUR SOUEAST ', ''), 60, currentY + 4)
+             .text(rec.cantidadOrdenesTrabajoFacturadasTotal || '0', 230, currentY + 4, { width: 80, align: 'center' })
+             .text(formatTpu(rec.cantidadOrdenesTrabajoFacturadasRango1), 310, currentY + 4, { width: 50, align: 'center' })
+             .text(formatTpu(rec.cantidadOrdenesTrabajoFacturadasRango2), 360, currentY + 4, { width: 50, align: 'center' })
+             .text(formatTpu(rec.cantidadOrdenesTrabajoFacturadasRango3), 410, currentY + 4, { width: 50, align: 'center' });
+
+          const r4Val = Number(rec.cantidadOrdenesTrabajoFacturadasRango4 || 0);
+          doc.fillColor(r4Val > 0 ? '#E53E3E' : '#2D3748')
+             .font(r4Val > 0 ? 'Helvetica-Bold' : 'Helvetica')
+             .text(formatTpu(rec.cantidadOrdenesTrabajoFacturadasRango4), 470, currentY + 4, { width: 70, align: 'center' });
+
+          currentY += 24;
+        });
+
+        // Calculate billed TPU YTD totals
+        const billedTotalMarca = billedTpuRecords.reduce((acc: number, r: any) => acc + (Number(r.cantidadOrdenesTrabajoFacturadasTotal) || 0), 0);
+        const billedR1Total = billedTpuRecords.reduce((acc: number, r: any) => acc + (Number(r.cantidadOrdenesTrabajoFacturadasRango1) || 0), 0);
+        const billedR2Total = billedTpuRecords.reduce((acc: number, r: any) => acc + (Number(r.cantidadOrdenesTrabajoFacturadasRango2) || 0), 0);
+        const billedR3Total = billedTpuRecords.reduce((acc: number, r: any) => acc + (Number(r.cantidadOrdenesTrabajoFacturadasRango3) || 0), 0);
+        const billedR4Total = billedTpuRecords.reduce((acc: number, r: any) => acc + (Number(r.cantidadOrdenesTrabajoFacturadasRango4) || 0), 0);
+
+        const formatBilledTotalTpu = (val: number) => {
+          if (billedTotalMarca <= 0) return `${val}\n(0%)`;
+          const pct = ((val / billedTotalMarca) * 100).toFixed(1);
+          return `${val}\n(${pct}%)`;
+        };
+
+        // Draw Billed Totals Row
+        doc.rect(50, currentY, 495, 24).fill('#EDF2F7');
+        doc.x = 50; // Reset X coordinate
+        doc.fillColor('#2B6CB0')
+           .fontSize(7)
+           .font('Helvetica-Bold')
+           .text('TOTAL MARCA', 60, currentY + 4)
+           .text(billedTotalMarca.toLocaleString('es-MX'), 230, currentY + 4, { width: 80, align: 'center' })
+           .text(formatBilledTotalTpu(billedR1Total), 310, currentY + 4, { width: 50, align: 'center' })
+           .text(formatBilledTotalTpu(billedR2Total), 360, currentY + 4, { width: 50, align: 'center' })
+           .text(formatBilledTotalTpu(billedR3Total), 410, currentY + 4, { width: 50, align: 'center' })
+           .text(formatBilledTotalTpu(billedR4Total), 470, currentY + 4, { width: 70, align: 'center' });
+        
+        currentY += 24;
+
+        doc.y = currentY + 20;
+
+      } else {
+        // --- PAGE 2 (SALES): ANÁLISIS DE VENTAS Y METAS ---
+        doc.fillColor('#1A365D')
+           .fontSize(16)
+           .font('Helvetica-Bold')
+           .text('1. Indicadores de Ventas e Históricos Comparativos');
+        
+        const monthsEs = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        const monthIdx = monthsEs.findIndex(m => cleanMonth.toLowerCase().includes(m.toLowerCase()));
+        let prevMonthsNames = '';
+        if (monthIdx !== -1) {
+          const p1 = monthsEs[(monthIdx - 3 + 12) % 12].substring(0, 3);
+          const p2 = monthsEs[(monthIdx - 2 + 12) % 12].substring(0, 3);
+          const p3 = monthsEs[(monthIdx - 1 + 12) % 12].substring(0, 3);
+          prevMonthsNames = `${p1}-${p2}-${p3}`;
+        } else {
+          prevMonthsNames = 'Mar-Abr-May';
+        }
+
+        doc.moveDown(0.5);
+        doc.fillColor('#4A5568')
+           .fontSize(10)
+           .font('Helvetica')
+           .text(`Comparativa del volumen acumulado de ventas del último trimestre (${prevMonthsNames}) contra el año anterior, mes equivalente de ${year - 1} y objetivo proyectado:`);
+        
+        doc.moveDown(1.5);
+
+        // Table Header
+        const tableStartY = doc.y;
+        doc.rect(50, tableStartY, 495, 22).fill('#2B6CB0');
+        doc.fillColor('#FFFFFF')
+           .fontSize(9)
+           .font('Helvetica-Bold')
+           .text('Modelo', 60, tableStartY + 7)
+           .text(`Trimestre ${year - 1}`, 150, tableStartY + 7, { width: 70, align: 'center' })
+           .text(`Trimestre ${year}`, 230, tableStartY + 7, { width: 70, align: 'center' })
+           .text('Crec. YoY %', 310, tableStartY + 7, { width: 60, align: 'center' })
+           .text(`${cleanMonth} ${year - 1}`, 380, tableStartY + 7, { width: 70, align: 'center' })
+           .text(`Meta ${cleanMonth} ${year}`, 460, tableStartY + 7, { width: 75, align: 'center' });
+
+        let currentY = tableStartY + 22;
+
+        // Sort comparison records descending by current year's sales (Trimestre 2026)
+        const sortedComparison = [...(metrics?.comparison || [])].sort((a: any, b: any) => b.sales3Months2026 - a.sales3Months2026);
+
+        // Table Rows
+        sortedComparison.forEach((item: any, index: number) => {
+          // Zebra striping
+          if (index % 2 === 0) {
+            doc.rect(50, currentY, 495, 20).fill('#F7FAFC');
+          }
+          
+          doc.fillColor('#2D3748')
+             .fontSize(9)
+             .font('Helvetica')
+             .text(item.model, 60, currentY + 5)
+             .text(item.sales3Months2025.toString(), 150, currentY + 5, { width: 70, align: 'center' })
+             .text(item.sales3Months2026.toString(), 230, currentY + 5, { width: 70, align: 'center' });
+
+          const growthColor = item.growthRate >= 0 ? '#48BB78' : '#E53E3E';
+          doc.fillColor(growthColor)
+             .font('Helvetica-Bold')
+             .text(`${item.growthRate}%`, 310, currentY + 5, { width: 60, align: 'center' });
+
+          doc.fillColor('#2D3748')
+             .font('Helvetica')
+             .text(item.june2025.toString(), 380, currentY + 5, { width: 70, align: 'center' });
+
+          doc.fillColor('#1A365D')
+             .font('Helvetica-Bold')
+             .text(item.suggestedGoal2026.toString(), 460, currentY + 5, { width: 75, align: 'center' });
+
+          currentY += 20;
+        });
+
+        // Total Row
+        doc.rect(50, currentY, 495, 22).fill('#E2E8F0');
+        doc.fillColor('#1A365D')
+           .fontSize(9)
+           .font('Helvetica-Bold')
+           .text('TOTAL MARCA', 60, currentY + 6)
+           .text(metrics?.totals?.sales3Months2025?.toString() || '0', 150, currentY + 6, { width: 70, align: 'center' })
+           .text(metrics?.totals?.sales3Months2026?.toString() || '0', 230, currentY + 6, { width: 70, align: 'center' });
+
+        const totalGrowthColor = (metrics?.totals?.growthRate || 0) >= 0 ? '#48BB78' : '#E53E3E';
+        doc.fillColor(totalGrowthColor)
+           .text(`${metrics?.totals?.growthRate || 0}%`, 310, currentY + 6, { width: 60, align: 'center' });
+
+        doc.fillColor('#1A365D')
+           .text(metrics?.totals?.june2025?.toString() || '0', 380, currentY + 6, { width: 70, align: 'center' })
+           .text(metrics?.totals?.suggestedGoal2026?.toString() || '0', 460, currentY + 6, { width: 75, align: 'center' });
+
+        currentY += 40;
+        doc.y = currentY;
+
+        // --- GRÁFICA VECTORIAL DE BARRAS DE OBJETIVOS (PDFKit Direct Drawing) ---
+        doc.x = 50; // Reset X to prevent right alignment overlap
+        doc.fillColor('#1A365D')
+           .fontSize(12)
+           .font('Helvetica-Bold')
+           .text('Gráfico Comparativo de Metas de Ventas por Modelo');
+        
+        doc.moveDown(0.5);
+
+        const chartStartY = doc.y;
+        const chartHeight = 130;
+        const barHeight = 12;
+        const chartModels = (metrics?.comparison || []).slice(0, 5); // top 5 models
+
+        // Draw Y and X axis
+        doc.strokeColor('#CBD5E0')
+           .lineWidth(1)
+           .moveTo(150, chartStartY)
+           .lineTo(150, chartStartY + chartHeight)
+           .lineTo(480, chartStartY + chartHeight)
+           .stroke();
+
+        // Calculate scale factor
+        const maxVal = Math.max(...chartModels.map((m: any) => Math.max(m.sales3Months2026 / 3, m.suggestedGoal2026)), 100);
+        const scaleFactor = 300 / maxVal; // 300px max width for the bar
+
+        chartModels.forEach((m: any, idx: number) => {
+          const yOffset = chartStartY + 15 + (idx * 22);
+
+          // Model text label
+          doc.fillColor('#2D3748')
+             .fontSize(8)
+             .font('Helvetica-Bold')
+             .text(m.model, 55, yOffset + 2, { width: 90, align: 'right' });
+
+          const recentAvgVal = Math.round(m.sales3Months2026 / 3);
+          const targetVal = m.suggestedGoal2026;
+
+          const wAvg = recentAvgVal * scaleFactor;
+          const wTarget = targetVal * scaleFactor;
+
+          // Draw Recent Average Bar (light grey/blue)
+          doc.rect(151, yOffset, Math.max(wAvg, 1), barHeight / 2).fill('#A0AEC0');
+
+          // Draw Target Bar (blue acento)
+          doc.rect(151, yOffset + (barHeight / 2) + 1, Math.max(wTarget, 1), barHeight / 2).fill('#2B6CB0');
+
+          // Values label next to the bars
+          doc.fillColor('#718096')
+             .fontSize(7)
+             .font('Helvetica')
+             .text(`Prom: ${recentAvgVal} | Meta: ${targetVal}`, 155 + Math.max(wAvg, wTarget), yOffset + 2);
+        });
+
+        // Axis labels
         doc.fillColor('#718096')
            .fontSize(7)
            .font('Helvetica')
-           .text(`Prom: ${recentAvgVal} | Meta: ${targetVal}`, 155 + Math.max(wAvg, wTarget), yOffset + 2);
-      });
+           .text('0', 148, chartStartY + chartHeight + 5)
+           .text(Math.round(maxVal).toString(), 465, chartStartY + chartHeight + 5);
 
-      // Axis labels
-      doc.fillColor('#718096')
-         .fontSize(7)
-         .font('Helvetica')
-         .text('0', 148, chartStartY + chartHeight + 5)
-         .text(Math.round(maxVal).toString(), 465, chartStartY + chartHeight + 5);
+        // Legend
+        doc.rect(340, chartStartY - 10, 8, 8).fill('#A0AEC0');
+        doc.fillColor('#4A5568')
+           .fontSize(8)
+           .text('Promedio Mensual Reciente', 353, chartStartY - 9);
 
-      // Legend
-      doc.rect(340, chartStartY - 10, 8, 8).fill('#A0AEC0');
-      doc.fillColor('#4A5568')
-         .fontSize(8)
-         .text('Promedio Mensual Reciente', 353, chartStartY - 9);
+        doc.rect(340, chartStartY - 2, 8, 8).fill('#2B6CB0');
+        doc.fillColor('#4A5568')
+           .fontSize(8)
+           .text('Meta Sugerida', 353, chartStartY - 1);
+      }
 
-      doc.rect(340, chartStartY - 2, 8, 8).fill('#2B6CB0');
-      doc.fillColor('#4A5568')
-         .fontSize(8)
-         .text('Meta Sugerida', 353, chartStartY - 1);
-
-      // Page break for Deep Research
+      // Page break for Deep Research / Strategy Text
       doc.addPage();
 
-      // --- PAGE 3+: ESTRATEGIA COMERCIAL UNIFICADA ---
+      // --- PAGE 3+: ESTRATEGIA UNIFICADA ---
+      const pageStrategyTitle = isAftersales
+        ? '1. Plan Estratégico de Posventa y Suministro de Refacciones'
+        : '2. Plan Estratégico Comercial y Propuesta de Trabajo';
+
       doc.fillColor('#1A365D')
          .fontSize(16)
          .font('Helvetica-Bold')
-         .text('2. Plan Estratégico Comercial y Propuesta de Trabajo');
+         .text(pageStrategyTitle);
       
       doc.moveDown(1);
 
@@ -372,8 +793,8 @@ export class PdfService {
               doc.moveDown(1.2);
             }
 
-            // Insert Infographic Image if we are entering Section 2 (or Campañas) and haven't inserted it yet
-            if (!infographicInserted && (headingText.toLowerCase().includes('campaña') || headingText.toLowerCase().includes('temporalidad') || doc.y > 450)) {
+            // Insert Infographic Image if we are entering Section 2 (or Campañas) and haven't inserted it yet (Sales only)
+            if (!isAftersales && !infographicInserted && (headingText.toLowerCase().includes('campaña') || headingText.toLowerCase().includes('temporalidad') || doc.y > 450)) {
               const infographicPath = path.join(process.cwd(), 'data', 'assets', 'marketing_infographic.png');
               if (fs.existsSync(infographicPath)) {
                 try {
@@ -631,9 +1052,17 @@ export class PdfService {
                .text(`Error cargando imagen: ${err.message}`);
           }
         } else {
-          doc.fillColor('#E53E3E')
-             .fontSize(10)
-             .text(`Imagen no encontrada: ${img.filename}`);
+          // Draw professional gray placeholder instead of raw error text
+          const currentY = doc.y;
+          doc.rect(50, currentY, 495, 80).fill('#EDF2F7');
+          doc.fillColor('#718096')
+             .fontSize(8.5)
+             .font('Helvetica-Bold')
+             .text(`Imagen de Ad #${idx + 1} (No generada - Vista previa no disponible)`, 50, currentY + 25, { align: 'center', width: 495 });
+          doc.font('Helvetica-Oblique')
+             .fontSize(7.5)
+             .text(`"${img.prompt}"`, 50, currentY + 45, { align: 'center', width: 495 });
+          doc.y = currentY + 90;
         }
       });
 

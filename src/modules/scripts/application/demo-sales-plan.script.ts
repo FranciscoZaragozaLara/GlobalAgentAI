@@ -274,9 +274,7 @@ export class DemoSalesPlanScript extends BaseScript {
             bannerInfo,
             trackingInfo
           );
-          if (!anyImageGenerationFailed) {
-            await this.researchStorageService.savePdfReport(monthName, queryYear, agencyName, pdfBuffer, researchMode, generateImages);
-          }
+          await this.researchStorageService.savePdfReport(monthName, queryYear, agencyName, pdfBuffer, researchMode, generateImages);
         }
         pdfS3Key = this.researchStorageService.getPdfS3Key(monthName, queryYear, agencyName, researchMode, generateImages);
 
@@ -288,7 +286,7 @@ export class DemoSalesPlanScript extends BaseScript {
             const catalog = this.extractImagesCatalog(modifiedMarkdown);
             try {
               imagesPdfBuffer = await this.pdfService.generateCampaignImagesPdf(monthName, agencyName, catalog);
-              if (imagesPdfBuffer && !anyImageGenerationFailed) {
+              if (imagesPdfBuffer) {
                 await this.researchStorageService.saveImagesPdfReport(monthName, queryYear, agencyName, imagesPdfBuffer, researchMode);
               }
             } catch (pdfErr: any) {
