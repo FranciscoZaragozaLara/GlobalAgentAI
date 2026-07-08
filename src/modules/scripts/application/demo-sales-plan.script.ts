@@ -12,6 +12,7 @@ import { PromptTemplateService } from '../../gemini/application/prompt-template.
 import { PrismaService } from '../../database/prisma.service';
 import { PptxService } from '../../notifications/application/pptx.service';
 import { PodcastService } from '../../notifications/application/podcast.service';
+import { S3Service } from '../../gemini/application/s3.service';
 import { performance } from 'perf_hooks';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -35,6 +36,7 @@ export class DemoSalesPlanScript extends BaseScript {
     private readonly promptTemplateService: PromptTemplateService,
     private readonly pptxService: PptxService,
     private readonly podcastService: PodcastService,
+    private readonly s3Service: S3Service,
   ) {
     super();
   }
@@ -137,6 +139,13 @@ export class DemoSalesPlanScript extends BaseScript {
       let podcastBuffer: Buffer | null = null;
       let pptxResearchBuffer: Buffer | null = null;
       let podcastResearchBuffer: Buffer | null = null;
+
+      let pdfCacheHit = false;
+      let imagesPdfCacheHit = false;
+      let pptxCacheHit = false;
+      let podcastCacheHit = false;
+      let pptxResearchCacheHit = false;
+      let podcastResearchCacheHit = false;
 
       let unifiedReport = '';
       let fromUnifiedCache = false;
@@ -263,6 +272,7 @@ export class DemoSalesPlanScript extends BaseScript {
         if (await this.researchStorageService.hasPdfReport(monthName, queryYear, agencyName, researchMode, generateImages)) {
           this.logger.log(`Final PDF Report found in cache (Nivel 4 HIT). Loading from disk...`);
           pdfBuffer = await this.researchStorageService.getPdfReport(monthName, queryYear, agencyName, researchMode, generateImages);
+          pdfCacheHit = true;
         } else {
           this.logger.log('Executive PDF cache miss. Generating executive PDF...');
           const sourcesSet = new Set<string>();
@@ -297,6 +307,7 @@ export class DemoSalesPlanScript extends BaseScript {
         if (generateImages) {
           if (await this.researchStorageService.hasImagesPdfReport(monthName, queryYear, agencyName, researchMode)) {
             imagesPdfBuffer = await this.researchStorageService.getImagesPdfReport(monthName, queryYear, agencyName, researchMode);
+            imagesPdfCacheHit = true;
           } else {
             const catalog = this.extractImagesCatalog(modifiedMarkdown);
             try {
@@ -316,6 +327,7 @@ export class DemoSalesPlanScript extends BaseScript {
           if (await this.researchStorageService.hasPptxReport(monthName, queryYear, agencyName, researchMode)) {
             this.logger.log('PowerPoint Slide Deck found in cache (HIT). Loading...');
             pptxBuffer = await this.researchStorageService.getPptxReport(monthName, queryYear, agencyName, researchMode);
+            pptxCacheHit = true;
           } else {
             this.logger.log('PowerPoint Slide Deck cache miss. Generating executive slides...');
             try {
@@ -357,6 +369,7 @@ export class DemoSalesPlanScript extends BaseScript {
           if (await this.researchStorageService.hasPodcastReport(monthName, queryYear, agencyName, researchMode)) {
             this.logger.log('Podcast audio found in S3 cache (HIT). Loading...');
             podcastBuffer = await this.researchStorageService.getPodcastReport(monthName, queryYear, agencyName, researchMode);
+            podcastCacheHit = true;
           } else {
             this.logger.log('Podcast cache miss. Generating executive podcast...');
             const podcastRes = await this.processPodcastOption(modifiedMarkdown, monthName, queryYear, agencyName, researchMode, false);
@@ -372,6 +385,7 @@ export class DemoSalesPlanScript extends BaseScript {
         if (await this.researchStorageService.hasPptxResearchReport(monthName, queryYear, agencyName, researchMode)) {
           this.logger.log('Research PowerPoint Slide Deck found in cache (HIT). Loading...');
           pptxResearchBuffer = await this.researchStorageService.getPptxResearchReport(monthName, queryYear, agencyName, researchMode);
+          pptxResearchCacheHit = true;
         } else {
           this.logger.log('Research PowerPoint Slide Deck cache miss. Generating research slides...');
           try {
@@ -411,6 +425,7 @@ export class DemoSalesPlanScript extends BaseScript {
         if (await this.researchStorageService.hasPodcastResearchReport(monthName, queryYear, agencyName, researchMode)) {
           this.logger.log('Research Podcast found in cache (HIT). Loading...');
           podcastResearchBuffer = await this.researchStorageService.getPodcastResearchReport(monthName, queryYear, agencyName, researchMode);
+          podcastResearchCacheHit = true;
         } else {
           this.logger.log('Research Podcast cache miss. Generating research podcast...');
           const podcastRes = await this.processPodcastOption(researchMd, monthName, queryYear, agencyName, researchMode, true);
@@ -530,59 +545,295 @@ export class DemoSalesPlanScript extends BaseScript {
       }
 
       // --- STEP 8: SEND MAIN EMAIL ---
+      const sevenDays = 604800;
+      let pdfLink = '';
+      let pptxLink = '';
+      let podcastLink = '';
+      let pptxResearchLink = '';
+      let podcastResearchLink = '';
+      let imagesPdfLink = '';
+      let researchLink = '';
+
+      if (pdfS3Key) {
+        try { pdfLink = await this.s3Service.getSignedUrl(pdfS3Key, sevenDays); } catch (e) {}
+      }
+      if (pptxS3Key) {
+        try { pptxLink = await this.s3Service.getSignedUrl(pptxS3Key, sevenDays); } catch (e) {}
+      }
+      if (podcastS3Key) {
+        try { podcastLink = await this.s3Service.getSignedUrl(podcastS3Key, sevenDays); } catch (e) {}
+      }
+      if (pptxResearchS3Key) {
+        try { pptxResearchLink = await this.s3Service.getSignedUrl(pptxResearchS3Key, sevenDays); } catch (e) {}
+      }
+      if (podcastResearchS3Key) {
+        try { podcastResearchLink = await this.s3Service.getSignedUrl(podcastResearchS3Key, sevenDays); } catch (e) {}
+      }
+      if (imagesS3Key) {
+        try { imagesPdfLink = await this.s3Service.getSignedUrl(imagesS3Key, sevenDays); } catch (e) {}
+      }
+      const researchS3KeyVal = this.researchStorageService.getResearchS3Key(monthName, queryYear, researchMode, 'sales');
+      if (researchS3KeyVal) {
+        try { researchLink = await this.s3Service.getSignedUrl(researchS3KeyVal, sevenDays); } catch (e) {}
+      }
+
+      // Generate Executive Summary via Gemini 3.5 Flash
+      this.logger.log('Generating sales executive summary for the email body using Gemini 3.5 Flash...');
+      const summaryPrompt = `Eres un consultor ejecutivo especializado en ventas y marketing automotriz de la marca Jetour y Soueast.
+Genera un Resumen Ejecutivo en formato de etiquetas HTML semánticas puras para el Director General basado en el siguiente reporte de ventas.
+El resumen debe ser de alto impacto estratégico y muy profesional. 
+Requisitos de Formato:
+1. Utiliza subtítulos con la etiqueta <h3 style="color:#0B1E36; margin-top:20px; margin-bottom:10px; font-size:16px;">.
+2. Utiliza viñetas con <ul> y <li style="margin-bottom:8px; line-height:1.5; color:#334155;">.
+3. Resalta las cifras o métricas críticas (como volumen total, mix de modelos, porcentaje de crecimiento, días de inventario) usando <strong>.
+4. Incluye exactamente una sección de "Métricas Clave de Desempeño" y otra sección de "Iniciativas Comerciales Recomendadas".
+5. NO incluyas etiquetas de marcado markdown de código como \`\`\`html o \`\`\?, ni cabeceras <html>, <body> o <!DOCTYPE>. Empieza directamente con el contenido HTML.
+
+Reporte de Ventas:
+${modifiedMarkdown}
+`;
+      
+      let executiveSummaryHtml = '';
+      try {
+        executiveSummaryHtml = await this.geminiService.generateText(summaryPrompt, 'gemini-3.5-flash');
+        executiveSummaryHtml = executiveSummaryHtml.replace(/```html/gi, '').replace(/```/g, '').trim();
+      } catch (sumErr) {
+        this.logger.error(`Error generating HTML sales executive summary: ${sumErr.message}`);
+        executiveSummaryHtml = `
+          <p style="color:#334155; line-height:1.5;">Se han compilado exitosamente las métricas de ventas históricas, el análisis de inventario actual por días de permanencia y las comparativas de mercado. Por favor consulte el reporte unificado adjunto para el desglose del plan estratégico comercial.</p>
+        `;
+      }
+
+      const genDateStr = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
+
+      // Build beautiful responsive HTML Email Template
+      const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Estrategia Corporativa Comercial y Ventas - ${monthName}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#F1F5F9; font-family:'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#F1F5F9; padding:20px 10px;">
+    <tr>
+      <td align="center">
+        <!-- Main Card Wrapper -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:600px; background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); border: 1px solid #E2E8F0;">
+          
+          <!-- Header Banner -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #0B1E36 0%, #1E3A8A 100%); padding:30px 24px; text-align:center; border-bottom: 4px solid #2B6CB0;">
+              <span style="background-color:rgba(43,108,176,0.2); color:#60A5FA; font-size:11px; font-weight:bold; letter-spacing:1px; text-transform:uppercase; padding:4px 8px; border-radius:20px; display:inline-block; margin-bottom:10px;">Dirección de Estrategia</span>
+              <h1 style="color:#ffffff; margin:0; font-size:22px; font-weight:bold; letter-spacing:-0.5px;">Estrategia Comercial y de Ventas</h1>
+              <p style="color:#93C5FD; margin:8px 0 0 0; font-size:14px;">Periodo: <strong>${monthName}</strong> | Agencia: ${agencyName}</p>
+            </td>
+          </tr>
+
+          <!-- Content Body -->
+          <tr>
+            <td style="padding:24px;">
+              <p style="color:#334155; font-size:15px; margin:0 0 20px 0; line-height:1.6;">
+                Estimado Director General,<br><br>
+                Presentamos los entregables de planificación comercial, análisis de mercado y rotación de inventarios para el área de <strong>Ventas y Mercadotecnia</strong>. El reporte consolida de forma analítica las métricas históricas de la agencia y la situación real de vehículos en stock con la investigación sectorial del país.
+              </p>
+
+              <!-- IA Executive Summary Card -->
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#F8FAFC; border-radius:8px; border-left:4px solid #2B6CB0; margin-bottom:28px;">
+                <tr>
+                  <td style="padding:16px 20px;">
+                    <h2 style="color:#0B1E36; margin:0 0 10px 0; font-size:16px; font-weight:bold; display:flex; align-items:center;">
+                      💡 Resumen Ejecutivo de Ventas (IA)
+                    </h2>
+                    <div style="font-size:14px; color:#334155; line-height:1.5;">
+                      ${executiveSummaryHtml}
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Deliverables Table Section -->
+              <h3 style="color:#0B1E36; font-size:16px; margin:0 0 12px 0; border-bottom:2px solid #E2E8F0; padding-bottom:8px;">📦 Catálogo de Entregables Estratégicos</h3>
+              
+              <div style="overflow-x:auto;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size:13px; text-align:left; border-collapse:collapse; min-width:500px;">
+                  <thead>
+                    <tr style="background-color:#0B1E36; color:#ffffff;">
+                      <th style="padding:10px 12px; border-radius:4px 0 0 0;">Entregable</th>
+                      <th style="padding:10px 12px; text-align:center;">Fecha</th>
+                      <th style="padding:10px 12px; text-align:center;">Origen</th>
+                      <th style="padding:10px 12px; text-align:center; border-radius:0 4px 0 0;">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <!-- PDF Unificado -->
+                    <tr style="border-bottom:1px solid #E2E8F0;">
+                      <td style="padding:12px 8px;">
+                        <strong>Reporte Principal PDF</strong><br>
+                        <span style="font-size:11px; color:#64748B;">Métricas comerciales unificadas, inventario físico e investigación de mercado.</span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center; color:#475569;">${genDateStr}</td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        <span style="background-color:${pdfCacheHit ? '#FEF3C7' : '#DCFCE7'}; color:${pdfCacheHit ? '#D97706' : '#15803D'}; padding:2px 6px; border-radius:10px; font-size:10px; font-weight:bold; white-space:nowrap;">
+                          ${pdfCacheHit ? '⚡ Caché' : '🆕 Real'}
+                        </span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        ${pdfLink ? `<a href="${pdfLink}" style="background-color:#2B6CB0; color:#ffffff; text-decoration:none; padding:5px 10px; border-radius:4px; font-size:11px; font-weight:bold; display:inline-block; white-space:nowrap;">Descargar</a>` : '<span style="color:#94A3B8;">N/A</span>'}
+                      </td>
+                    </tr>
+
+                    <!-- Catálogo de Imágenes -->
+                    ${imagesPdfLink ? `
+                    <tr style="border-bottom:1px solid #E2E8F0; background-color:#F8FAFC;">
+                      <td style="padding:12px 8px;">
+                        <strong>Catálogo de Imágenes de Campañas</strong><br>
+                        <span style="font-size:11px; color:#64748B;">Propuestas visuales para campañas publicitarias (generado por IA).</span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center; color:#475569;">${genDateStr}</td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        <span style="background-color:${imagesPdfCacheHit ? '#FEF3C7' : '#DCFCE7'}; color:${imagesPdfCacheHit ? '#D97706' : '#15803D'}; padding:2px 6px; border-radius:10px; font-size:10px; font-weight:bold; white-space:nowrap;">
+                          ${imagesPdfCacheHit ? '⚡ Caché' : '🆕 Real'}
+                        </span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        <a href="${imagesPdfLink}" style="background-color:#2B6CB0; color:#ffffff; text-decoration:none; padding:5px 10px; border-radius:4px; font-size:11px; font-weight:bold; display:inline-block; white-space:nowrap;">Descargar</a>
+                      </td>
+                    </tr>
+                    ` : ''}
+
+                    <!-- PPTX Slides -->
+                    ${pptxLink ? `
+                    <tr style="border-bottom:1px solid #E2E8F0;">
+                      <td style="padding:12px 8px;">
+                        <strong>Presentación Slides PPTX</strong><br>
+                        <span style="font-size:11px; color:#64748B;">Láminas ejecutivas de ventas para consejo administrativo.</span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center; color:#475569;">${genDateStr}</td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        <span style="background-color:${pptxCacheHit ? '#FEF3C7' : '#DCFCE7'}; color:${pptxCacheHit ? '#D97706' : '#15803D'}; padding:2px 6px; border-radius:10px; font-size:10px; font-weight:bold; white-space:nowrap;">
+                          ${pptxCacheHit ? '⚡ Caché' : '🆕 Real'}
+                        </span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        <a href="${pptxLink}" style="background-color:#2B6CB0; color:#ffffff; text-decoration:none; padding:5px 10px; border-radius:4px; font-size:11px; font-weight:bold; display:inline-block; white-space:nowrap;">Descargar</a>
+                      </td>
+                    </tr>
+                    ` : ''}
+
+                    <!-- Podcast MP3 -->
+                    ${podcastLink ? `
+                    <tr style="border-bottom:1px solid #E2E8F0; background-color:#F8FAFC;">
+                      <td style="padding:12px 8px;">
+                        <strong>Podcast de Audio MP3</strong><br>
+                        <span style="font-size:11px; color:#64748B;">Resumen y debate del plan en formato de panel de audio.</span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center; color:#475569;">${genDateStr}</td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        <span style="background-color:${podcastCacheHit ? '#FEF3C7' : '#DCFCE7'}; color:${podcastCacheHit ? '#D97706' : '#15803D'}; padding:2px 6px; border-radius:10px; font-size:10px; font-weight:bold; white-space:nowrap;">
+                          ${podcastCacheHit ? '⚡ Caché' : '🆕 Real'}
+                        </span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        <a href="${podcastLink}" style="background-color:#2B6CB0; color:#ffffff; text-decoration:none; padding:5px 10px; border-radius:4px; font-size:11px; font-weight:bold; display:inline-block; white-space:nowrap;">Escuchar</a>
+                      </td>
+                    </tr>
+                    ` : ''}
+
+                    <!-- Research Slides -->
+                    ${pptxResearchLink ? `
+                    <tr style="border-bottom:1px solid #E2E8F0;">
+                      <td style="padding:12px 8px;">
+                        <strong>Slides PPTX del Deep Research</strong><br>
+                        <span style="font-size:11px; color:#64748B;">Láminas detalladas sobre la investigación de competidores y mercado.</span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center; color:#475569;">${genDateStr}</td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        <span style="background-color:${pptxResearchCacheHit ? '#FEF3C7' : '#DCFCE7'}; color:${pptxResearchCacheHit ? '#D97706' : '#15803D'}; padding:2px 6px; border-radius:10px; font-size:10px; font-weight:bold; white-space:nowrap;">
+                          ${pptxResearchCacheHit ? '⚡ Caché' : '🆕 Real'}
+                        </span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        <a href="${pptxResearchLink}" style="background-color:#2B6CB0; color:#ffffff; text-decoration:none; padding:5px 10px; border-radius:4px; font-size:11px; font-weight:bold; display:inline-block; white-space:nowrap;">Descargar</a>
+                      </td>
+                    </tr>
+                    ` : ''}
+
+                    <!-- Research Podcast -->
+                    ${podcastResearchLink ? `
+                    <tr style="border-bottom:1px solid #E2E8F0; background-color:#F8FAFC;">
+                      <td style="padding:12px 8px;">
+                        <strong>Podcast del Deep Research MP3</strong><br>
+                        <span style="font-size:11px; color:#64748B;">Conversación sobre los hallazgos competitivos sectoriales.</span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center; color:#475569;">${genDateStr}</td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        <span style="background-color:${podcastResearchCacheHit ? '#FEF3C7' : '#DCFCE7'}; color:${podcastResearchCacheHit ? '#D97706' : '#15803D'}; padding:2px 6px; border-radius:10px; font-size:10px; font-weight:bold; white-space:nowrap;">
+                          ${podcastResearchCacheHit ? '⚡ Caché' : '🆕 Real'}
+                        </span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        <a href="${podcastResearchLink}" style="background-color:#2B6CB0; color:#ffffff; text-decoration:none; padding:5px 10px; border-radius:4px; font-size:11px; font-weight:bold; display:inline-block; white-space:nowrap;">Escuchar</a>
+                      </td>
+                    </tr>
+                    ` : ''}
+
+                    <!-- Texto de Investigación -->
+                    <tr style="border-bottom:1px solid #E2E8F0;">
+                      <td style="padding:12px 8px;">
+                        <strong>Reporte Completo de Investigación (TXT)</strong><br>
+                        <span style="font-size:11px; color:#64748B;">Minuta íntegra del Deep Research de mercado.</span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center; color:#475569;">${genDateStr}</td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        <span style="background-color:${fromResearchCache ? '#FEF3C7' : '#DCFCE7'}; color:${fromResearchCache ? '#D97706' : '#15803D'}; padding:2px 6px; border-radius:10px; font-size:10px; font-weight:bold; white-space:nowrap;">
+                          ${fromResearchCache ? '⚡ Caché' : '🆕 Real'}
+                        </span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        ${researchLink ? `<a href="${researchLink}" style="background-color:#2B6CB0; color:#ffffff; text-decoration:none; padding:5px 10px; border-radius:4px; font-size:11px; font-weight:bold; display:inline-block; white-space:nowrap;">Descargar</a>` : '<span style="color:#94A3B8;">N/A</span>'}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Expiry Alert -->
+              <p style="background-color:#FFFBEB; border: 1px solid #FDE68A; border-radius:6px; padding:12px; color:#B45309; font-size:12px; margin-top:20px; line-height:1.4; text-align:center;">
+                ⚠️ <strong>Nota de Seguridad:</strong> Por motivos de confidencialidad y protección de datos comerciales, los botones de descarga segura expirarán automáticamente en <strong>7 días</strong>.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color:#0B1E36; color:#94A3B8; text-align:center; padding:20px 24px; font-size:11px; border-top:1px solid #E2E8F0;">
+              <p style="margin:0 0 4px 0; color:#ffffff; font-weight:bold;">Global Agent AI - Jetour & Soueast</p>
+              <p style="margin:0;">Este es un reporte automático generado por el asistente de inteligencia artificial.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`;
+
       const emailBodyText = `Estimado Director,
+Adjuntamos los entregables solicitados del Plan Estratégico Comercial correspondiente a ${monthName}.
+Por favor, consulte la versión HTML del correo para acceder a los botones de descarga de PPTX, MP3 e investigación completa.`;
 
-Adjuntamos los entregables solicitados del Plan Estratégico y de Investigación correspondiente al periodo de ${monthName}. 
-
-Dependiendo de su selección, se han generado y anexado los correspondientes reportes ejecutivos, presentaciones PPTX y audios de podcast.`;
-
-      const additionalAttachments: Array<{ content: Buffer; name: string }> = [
-        {
-          content: Buffer.from(researchMd, 'utf-8'),
-          name: `Investigacion_Mercado_Deep_Research_${researchMode}_${monthName.replace(/\s+/g, '_')}.txt`,
-        }
-      ];
-
-      if (imagesPdfBuffer) {
-        additionalAttachments.push({
-          content: imagesPdfBuffer,
-          name: `Catalogo_Imagenes_Campanas_${monthName.replace(/\s+/g, '_')}.pdf`,
-        });
-      }
-      if (pptxBuffer) {
-        additionalAttachments.push({
-          content: pptxBuffer,
-          name: `Presentacion_Estrategia_Ejecutiva_${monthName.replace(/\s+/g, '_')}.pptx`,
-        });
-      }
-      if (podcastBuffer) {
-        additionalAttachments.push({
-          content: podcastBuffer,
-          name: `Podcast_Estrategia_Ejecutiva_${monthName.replace(/\s+/g, '_')}.mp3`,
-        });
-      }
-      if (pptxResearchBuffer) {
-        additionalAttachments.push({
-          content: pptxResearchBuffer,
-          name: `Presentacion_Estrategia_Research_${monthName.replace(/\s+/g, '_')}.pptx`,
-        });
-      }
-      if (podcastResearchBuffer) {
-        additionalAttachments.push({
-          content: podcastResearchBuffer,
-          name: `Podcast_Estrategia_Research_${monthName.replace(/\s+/g, '_')}.mp3`,
-        });
-      }
-
-      this.logger.log(`Sending Strategic Sales Plan email with ${additionalAttachments.length} attachments to ${emailDestination}...`);
+      this.logger.log('Sending Strategic Sales Plan email with premium HTML layout and S3 URLs...');
       const emailSent = await this.emailService.sendMailWithAttachment(
         emailDestination,
-        `Plan Estratégico - ${monthName}`,
+        `Plan Estratégico Comercial - ${monthName}`,
         emailBodyText,
         pdfBuffer || undefined,
         pdfBuffer ? `Plan_Estrategico_Ventas_${researchMode}_${monthName.replace(/\s+/g, '_')}.pdf` : undefined,
-        undefined,
-        additionalAttachments,
+        htmlBody,
+        [],
       );
 
       if (emailSent) {
