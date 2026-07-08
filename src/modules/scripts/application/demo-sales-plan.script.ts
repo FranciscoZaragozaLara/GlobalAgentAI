@@ -553,6 +553,7 @@ export class DemoSalesPlanScript extends BaseScript {
       let podcastResearchLink = '';
       let imagesPdfLink = '';
       let researchLink = '';
+      let baseDocLink = '';
 
       if (pdfS3Key) {
         try { pdfLink = await this.s3Service.getSignedUrl(pdfS3Key, sevenDays); } catch (e) {}
@@ -575,6 +576,25 @@ export class DemoSalesPlanScript extends BaseScript {
       const researchS3KeyVal = this.researchStorageService.getResearchS3Key(monthName, queryYear, researchMode, 'sales');
       if (researchS3KeyVal) {
         try { researchLink = await this.s3Service.getSignedUrl(researchS3KeyVal, sevenDays); } catch (e) {}
+      }
+
+      // Check, upload, and sign base reference document
+      const baseDocsS3Key = 'base-documents/Estrategia_Seminuevos_Jetour_Mexico.md';
+      try {
+        const localPath = path.join(process.cwd(), 'docs', 'Estrategia Seminuevos Jetour México.md');
+        if (fs.existsSync(localPath)) {
+          const fileExists = await this.s3Service.fileExists(baseDocsS3Key);
+          if (!fileExists) {
+            this.logger.log('Uploading base document to S3: Estrategia Seminuevos Jetour México.md');
+            const content = fs.readFileSync(localPath, 'utf-8');
+            await this.s3Service.uploadFile(baseDocsS3Key, content, 'text/markdown');
+          }
+          baseDocLink = await this.s3Service.getSignedUrl(baseDocsS3Key, sevenDays);
+        } else {
+          this.logger.error(`Local base document not found at: ${localPath}`);
+        }
+      } catch (err: any) {
+        this.logger.error(`Error uploading base document: ${err.message}`);
       }
 
       // Generate Executive Summary via Gemini 3.5 Flash
@@ -793,6 +813,39 @@ ${modifiedMarkdown}
                       </td>
                       <td style="padding:12px 8px; text-align:center;">
                         ${researchLink ? `<a href="${researchLink}" style="background-color:#2B6CB0; color:#ffffff; text-decoration:none; padding:5px 10px; border-radius:4px; font-size:11px; font-weight:bold; display:inline-block; white-space:nowrap;">Descargar</a>` : '<span style="color:#94A3B8;">N/A</span>'}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Base Reference Documents Section -->
+              <h3 style="color:#0B1E36; font-size:16px; margin:28px 0 12px 0; border-bottom:2px solid #E2E8F0; padding-bottom:8px;">📁 Documentos Base de Referencia</h3>
+              
+              <div style="overflow-x:auto; margin-bottom:20px;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size:13px; text-align:left; border-collapse:collapse; min-width:500px;">
+                  <thead>
+                    <tr style="background-color:#1E3A8A; color:#ffffff;">
+                      <th style="padding:10px 12px; border-radius:4px 0 0 0;">Documento</th>
+                      <th style="padding:10px 12px; text-align:center;">Tipo</th>
+                      <th style="padding:10px 12px; text-align:center;">Estado</th>
+                      <th style="padding:10px 12px; text-align:center; border-radius:0 4px 0 0;">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style="border-bottom:1px solid #E2E8F0; background-color:#F8FAFC;">
+                      <td style="padding:12px 8px;">
+                        <strong>Estrategia Seminuevos Jetour México</strong><br>
+                        <span style="font-size:11px; color:#64748B;">Lineamiento base de referencia corporativa para vehículos seminuevos.</span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center; color:#475569;">Markdown</td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        <span style="background-color:#E0F2FE; color:#0369A1; padding:2px 6px; border-radius:10px; font-size:10px; font-weight:bold; white-space:nowrap;">
+                          📌 Fijo
+                        </span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        ${baseDocLink ? `<a href="${baseDocLink}" style="background-color:#1E3A8A; color:#ffffff; text-decoration:none; padding:5px 10px; border-radius:4px; font-size:11px; font-weight:bold; display:inline-block; white-space:nowrap;">Descargar</a>` : '<span style="color:#94A3B8;">N/A</span>'}
                       </td>
                     </tr>
                   </tbody>
