@@ -376,7 +376,7 @@ export default function Dashboard() {
         cell: (info) => {
           const date = new Date(info.getValue() as string);
           return (
-            <span className="text-zinc-400 text-xs">
+            <span className="text-zinc-400 text-xs" suppressHydrationWarning>
               {date.toLocaleDateString("es-MX", {
                 year: "numeric",
                 month: "short",
