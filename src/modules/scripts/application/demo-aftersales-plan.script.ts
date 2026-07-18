@@ -77,6 +77,12 @@ export class DemoAftersalesPlanScript extends BaseScript {
       // --- STEP 1: DEEP RESEARCH (TIER 1 CACHE) ---
       let researchMd = '';
       let fromResearchCache = false;
+      let pdfCacheHit = false;
+      let imagesPdfCacheHit = false;
+      let pptxCacheHit = false;
+      let podcastCacheHit = false;
+      let pptxResearchCacheHit = false;
+      let podcastResearchCacheHit = false;
 
       if (await this.researchStorageService.hasResearch(monthName, queryYear, researchMode, 'aftersales')) {
         this.logger.log(`Deep Research found in cache (Nivel 1 HIT) for Aftersales ${monthName} ${queryYear} (${researchMode}). Loading...`);
@@ -233,8 +239,10 @@ export class DemoAftersalesPlanScript extends BaseScript {
         if (await this.researchStorageService.hasPdfReport(monthName, queryYear, agencyName, researchMode, generateImages)) {
           this.logger.log(`Final Aftersales PDF Report found in cache (HIT).`);
           pdfBuffer = await this.researchStorageService.getPdfReport(monthName, queryYear, agencyName, researchMode, generateImages);
+          pdfCacheHit = true;
         } else {
           this.logger.log('Executive PDF cache miss. Generating dynamic executive PDF...');
+          pdfCacheHit = false;
           const sourcesSet = new Set<string>();
           const sourceRegex = /\[\d+\]\s+(https?:\/\/[^\s\)]+)/g;
           let match;
@@ -266,7 +274,9 @@ export class DemoAftersalesPlanScript extends BaseScript {
         if (generateImages) {
           if (await this.researchStorageService.hasImagesPdfReport(monthName, queryYear, agencyName, researchMode)) {
             imagesPdfBuffer = await this.researchStorageService.getImagesPdfReport(monthName, queryYear, agencyName, researchMode);
+            imagesPdfCacheHit = true;
           } else {
+            imagesPdfCacheHit = false;
             const catalog = this.extractImagesCatalog(modifiedMarkdown);
             try {
               imagesPdfBuffer = await this.pdfService.generateCampaignImagesPdf(monthName, agencyName, catalog);
@@ -285,7 +295,9 @@ export class DemoAftersalesPlanScript extends BaseScript {
           if (await this.researchStorageService.hasPptxReport(monthName, queryYear, agencyName, researchMode)) {
             this.logger.log('PowerPoint Slide Deck found in cache (HIT). Loading...');
             pptxBuffer = await this.researchStorageService.getPptxReport(monthName, queryYear, agencyName, researchMode);
+            pptxCacheHit = true;
           } else {
+            pptxCacheHit = false;
             this.logger.log('PowerPoint Slide Deck cache miss. Generating executive slides...');
             try {
               const pptxPrompt = await this.promptTemplateService.resolvePrompt('pptx-strategy-structure', { REPORT_CONTENT: modifiedMarkdown });
@@ -326,7 +338,9 @@ export class DemoAftersalesPlanScript extends BaseScript {
           if (await this.researchStorageService.hasPodcastReport(monthName, queryYear, agencyName, researchMode)) {
             this.logger.log('Podcast audio found in S3 cache (HIT). Loading...');
             podcastBuffer = await this.researchStorageService.getPodcastReport(monthName, queryYear, agencyName, researchMode);
+            podcastCacheHit = true;
           } else {
+            podcastCacheHit = false;
             this.logger.log('Podcast cache miss. Generating executive podcast...');
             const podcastRes = await this.processPodcastOption(modifiedMarkdown, monthName, queryYear, agencyName, researchMode, false);
             podcastBuffer = podcastRes.podcastBuffer;
@@ -340,7 +354,9 @@ export class DemoAftersalesPlanScript extends BaseScript {
       if (generateResearchSlides) {
         if (await this.researchStorageService.hasPptxResearchReport(monthName, queryYear, agencyName, researchMode)) {
           pptxResearchBuffer = await this.researchStorageService.getPptxResearchReport(monthName, queryYear, agencyName, researchMode);
+          pptxResearchCacheHit = true;
         } else {
+          pptxResearchCacheHit = false;
           this.logger.log('Research Slides cache miss. Generating research slides...');
           try {
             const pptxPrompt = await this.promptTemplateService.resolvePrompt('pptx-strategy-structure', { REPORT_CONTENT: researchMd });
@@ -378,7 +394,9 @@ export class DemoAftersalesPlanScript extends BaseScript {
       if (generateResearchPodcast) {
         if (await this.researchStorageService.hasPodcastResearchReport(monthName, queryYear, agencyName, researchMode)) {
           podcastResearchBuffer = await this.researchStorageService.getPodcastResearchReport(monthName, queryYear, agencyName, researchMode);
+          podcastResearchCacheHit = true;
         } else {
+          podcastResearchCacheHit = false;
           this.logger.log('Research Podcast cache miss. Generating research podcast...');
           const podcastRes = await this.processPodcastOption(researchMd, monthName, queryYear, agencyName, researchMode, true);
           podcastResearchBuffer = podcastRes.podcastBuffer;
@@ -412,12 +430,17 @@ export class DemoAftersalesPlanScript extends BaseScript {
 
       // --- STEP 8: SEND MAIN EMAIL ---
       const sevenDays = 604800;
+      let pdfLink = '';
       let pptxLink = '';
       let podcastLink = '';
       let pptxResearchLink = '';
       let podcastResearchLink = '';
       let imagesPdfLink = '';
+      let researchLink = '';
 
+      if (pdfS3Key) {
+        try { pdfLink = await this.s3Service.getSignedUrl(pdfS3Key, sevenDays); } catch (e) {}
+      }
       if (pptxS3Key) {
         try { pptxLink = await this.s3Service.getSignedUrl(pptxS3Key, sevenDays); } catch (e) {}
       }
@@ -433,19 +456,265 @@ export class DemoAftersalesPlanScript extends BaseScript {
       if (imagesS3Key) {
         try { imagesPdfLink = await this.s3Service.getSignedUrl(imagesS3Key, sevenDays); } catch (e) {}
       }
+      const researchS3KeyVal = this.researchStorageService.getResearchS3Key(monthName, queryYear, researchMode, 'aftersales');
+      if (researchS3KeyVal) {
+        try { researchLink = await this.s3Service.getSignedUrl(researchS3KeyVal, sevenDays); } catch (e) {}
+      }
 
+      // Generate Executive Summary via Gemini 3.5 Flash
+      this.logger.log('Generating executive summary for the email body using Gemini 3.5 Flash...');
+      const summaryPrompt = `Eres un consultor ejecutivo especializado en posventa automotriz de la marca Jetour y Soueast.
+Genera un Resumen Ejecutivo en formato de etiquetas HTML semánticas puras para el Director General basado en la siguiente información de posventa.
+El resumen debe ser de alto impacto estratégico y muy profesional. 
+Requisitos de Formato:
+1. Utiliza subtítulos con la etiqueta <h3 style="color:#0B1E36; margin-top:20px; margin-bottom:10px; font-size:16px;">.
+2. Utiliza viñetas con <ul> y <li style="margin-bottom:8px; line-height:1.5; color:#334155;">.
+3. Resalta las cifras o métricas críticas (como TPU, mix de taller, piezas surtidas) usando <strong>.
+4. Incluye exactamente una sección de "Métricas Críticas" y otra sección de "Acciones de Suministro Recomendadas".
+5. NO incluyas etiquetas de marcado markdown de código como \`\`\`html o \`\`\`, ni cabeceras <html>, <body> o <!DOCTYPE>. Empieza directamente con el contenido HTML.
+
+Reporte Posventa:
+${modifiedMarkdown}
+`;
+      
+      let executiveSummaryHtml = '';
+      try {
+        executiveSummaryHtml = await this.geminiService.generateText(summaryPrompt, 'gemini-3.5-flash');
+        // Clean any code fences if LLM accidentally added them
+        executiveSummaryHtml = executiveSummaryHtml.replace(/```html/gi, '').replace(/```/g, '').trim();
+      } catch (sumErr) {
+        this.logger.error(`Error generating HTML executive summary: ${sumErr.message}`);
+        executiveSummaryHtml = `
+          <p style="color:#334155; line-height:1.5;">Se han compilado exitosamente las métricas de taller, productividad y fletes del mes. Por favor consulte el reporte unificado adjunto para el desglose del plan estratégico.</p>
+        `;
+      }
+
+      const genDateStr = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
+
+      // Build beautiful responsive HTML Email Template
+      // Colors: Navy (#0B1E36), Teal (#0E7490), Amber/Orange (#F59E0B), Green (#10B981)
+      const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Estrategia Corporativa Posventa y Refacciones - ${monthName}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#F1F5F9; font-family:'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#F1F5F9; padding:20px 10px;">
+    <tr>
+      <td align="center">
+        <!-- Main Card Wrapper -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:600px; background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); border: 1px solid #E2E8F0;">
+          
+          <!-- Header Banner -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #0B1E36 0%, #1E3A8A 100%); padding:30px 24px; text-align:center; border-bottom: 4px solid #0E7490;">
+              <span style="background-color:rgba(14,116,144,0.2); color:#38BDF8; font-size:11px; font-weight:bold; letter-spacing:1px; text-transform:uppercase; padding:4px 8px; border-radius:20px; display:inline-block; margin-bottom:10px;">Inteligencia de Operaciones</span>
+              <h1 style="color:#ffffff; margin:0; font-size:22px; font-weight:bold; letter-spacing:-0.5px;">Estrategia Posventa y Refacciones</h1>
+              <p style="color:#93C5FD; margin:8px 0 0 0; font-size:14px;">Periodo: <strong>${monthName}</strong> | Agencia: ${agencyName}</p>
+            </td>
+          </tr>
+
+          <!-- Content Body -->
+          <tr>
+            <td style="padding:24px;">
+              <p style="color:#334155; font-size:15px; margin:0 0 20px 0; line-height:1.6;">
+                Estimado Director General,<br><br>
+                Presentamos los entregables de planificación comercial y logística para el área de <strong>Posventa y Refacciones</strong>. El análisis integra de forma automatizada las métricas reales del taller con la investigación de la cadena de suministro nacional.
+              </p>
+
+              <!-- IA Executive Summary Card -->
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#F8FAFC; border-radius:8px; border-left:4px solid #0E7490; margin-bottom:28px;">
+                <tr>
+                  <td style="padding:16px 20px;">
+                    <h2 style="color:#0B1E36; margin:0 0 10px 0; font-size:16px; font-weight:bold; display:flex; align-items:center;">
+                      💡 Resumen Ejecutivo (IA)
+                    </h2>
+                    <div style="font-size:14px; color:#334155; line-height:1.5;">
+                      ${executiveSummaryHtml}
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Deliverables Table Section -->
+              <h3 style="color:#0B1E36; font-size:16px; margin:0 0 12px 0; border-bottom:2px solid #E2E8F0; padding-bottom:8px;">📦 Catálogo de Entregables Estratégicos</h3>
+              
+              <div style="overflow-x:auto;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size:13px; text-align:left; border-collapse:collapse; min-width:500px;">
+                  <thead>
+                    <tr style="background-color:#0B1E36; color:#ffffff;">
+                      <th style="padding:10px 12px; border-radius:4px 0 0 0;">Entregable</th>
+                      <th style="padding:10px 12px; text-align:center;">Fecha</th>
+                      <th style="padding:10px 12px; text-align:center;">Origen</th>
+                      <th style="padding:10px 12px; text-align:center; border-radius:0 4px 0 0;">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <!-- PDF Unificado -->
+                    <tr style="border-bottom:1px solid #E2E8F0;">
+                      <td style="padding:12px 8px;">
+                        <strong>Reporte Principal PDF</strong><br>
+                        <span style="font-size:11px; color:#64748B;">Métricas unificadas de taller, retención y logística.</span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center; color:#475569;">${genDateStr}</td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        <span style="background-color:${pdfCacheHit ? '#FEF3C7' : '#DCFCE7'}; color:${pdfCacheHit ? '#D97706' : '#15803D'}; padding:2px 6px; border-radius:10px; font-size:10px; font-weight:bold; white-space:nowrap;">
+                          ${pdfCacheHit ? '⚡ Caché' : '🆕 Real'}
+                        </span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        ${pdfLink ? `<a href="${pdfLink}" style="background-color:#0E7490; color:#ffffff; text-decoration:none; padding:5px 10px; border-radius:4px; font-size:11px; font-weight:bold; display:inline-block; white-space:nowrap;">Descargar</a>` : '<span style="color:#94A3B8;">N/A</span>'}
+                      </td>
+                    </tr>
+
+                    <!-- PPTX Slides -->
+                    <tr style="border-bottom:1px solid #E2E8F0; background-color:#F8FAFC;">
+                      <td style="padding:12px 8px;">
+                        <strong>Presentación Slides PPTX</strong><br>
+                        <span style="font-size:11px; color:#64748B;">Diapositivas listas para junta directiva.</span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center; color:#475569;">${genDateStr}</td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        <span style="background-color:${pptxCacheHit ? '#FEF3C7' : '#DCFCE7'}; color:${pptxCacheHit ? '#D97706' : '#15803D'}; padding:2px 6px; border-radius:10px; font-size:10px; font-weight:bold; white-space:nowrap;">
+                          ${pptxCacheHit ? '⚡ Caché' : '🆕 Real'}
+                        </span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        ${pptxLink ? `<a href="${pptxLink}" style="background-color:#0E7490; color:#ffffff; text-decoration:none; padding:5px 10px; border-radius:4px; font-size:11px; font-weight:bold; display:inline-block; white-space:nowrap;">Descargar</a>` : '<span style="color:#94A3B8;">N/A</span>'}
+                      </td>
+                    </tr>
+
+                    <!-- Podcast MP3 -->
+                    <tr style="border-bottom:1px solid #E2E8F0;">
+                      <td style="padding:12px 8px;">
+                        <strong>Podcast de Audio MP3</strong><br>
+                        <span style="font-size:11px; color:#64748B;">Discusión del plan corporativo (Elena y David).</span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center; color:#475569;">${genDateStr}</td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        <span style="background-color:${podcastCacheHit ? '#FEF3C7' : '#DCFCE7'}; color:${podcastCacheHit ? '#D97706' : '#15803D'}; padding:2px 6px; border-radius:10px; font-size:10px; font-weight:bold; white-space:nowrap;">
+                          ${podcastCacheHit ? '⚡ Caché' : '🆕 Real'}
+                        </span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        ${podcastLink ? `<a href="${podcastLink}" style="background-color:#0E7490; color:#ffffff; text-decoration:none; padding:5px 10px; border-radius:4px; font-size:11px; font-weight:bold; display:inline-block; white-space:nowrap;">Escuchar</a>` : '<span style="color:#94A3B8;">N/A</span>'}
+                      </td>
+                    </tr>
+
+                    <!-- Catálogo de Campañas -->
+                    <tr style="border-bottom:1px solid #E2E8F0; background-color:#F8FAFC;">
+                      <td style="padding:12px 8px;">
+                        <strong>Catálogo de Publicidad PDF</strong><br>
+                        <span style="font-size:11px; color:#64748B;">Imágenes y copys publicitarios de posventa.</span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center; color:#475569;">${genDateStr}</td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        <span style="background-color:${imagesPdfCacheHit ? '#FEF3C7' : '#DCFCE7'}; color:${imagesPdfCacheHit ? '#D97706' : '#15803D'}; padding:2px 6px; border-radius:10px; font-size:10px; font-weight:bold; white-space:nowrap;">
+                          ${imagesPdfCacheHit ? '⚡ Caché' : '🆕 Real'}
+                        </span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        ${imagesPdfLink ? `<a href="${imagesPdfLink}" style="background-color:#0E7490; color:#ffffff; text-decoration:none; padding:5px 10px; border-radius:4px; font-size:11px; font-weight:bold; display:inline-block; white-space:nowrap;">Descargar</a>` : '<span style="color:#94A3B8;">N/A</span>'}
+                      </td>
+                    </tr>
+
+                    <!-- Deep Research Slides -->
+                    <tr style="border-bottom:1px solid #E2E8F0;">
+                      <td style="padding:12px 8px;">
+                        <strong>Diapositivas Investigación</strong><br>
+                        <span style="font-size:11px; color:#64748B;">Slides técnicas del estudio logístico base.</span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center; color:#475569;">${genDateStr}</td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        <span style="background-color:${pptxResearchCacheHit ? '#FEF3C7' : '#DCFCE7'}; color:${pptxResearchCacheHit ? '#D97706' : '#15803D'}; padding:2px 6px; border-radius:10px; font-size:10px; font-weight:bold; white-space:nowrap;">
+                          ${pptxResearchCacheHit ? '⚡ Caché' : '🆕 Real'}
+                        </span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        ${pptxResearchLink ? `<a href="${pptxResearchLink}" style="background-color:#0E7490; color:#ffffff; text-decoration:none; padding:5px 10px; border-radius:4px; font-size:11px; font-weight:bold; display:inline-block; white-space:nowrap;">Descargar</a>` : '<span style="color:#94A3B8;">N/A</span>'}
+                      </td>
+                    </tr>
+
+                    <!-- Deep Research Podcast -->
+                    <tr style="border-bottom:1px solid #E2E8F0; background-color:#F8FAFC;">
+                      <td style="padding:12px 8px;">
+                        <strong>Podcast de Investigación MP3</strong><br>
+                        <span style="font-size:11px; color:#64748B;">Audio técnico analizando fletes y aduanas.</span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center; color:#475569;">${genDateStr}</td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        <span style="background-color:${podcastResearchCacheHit ? '#FEF3C7' : '#DCFCE7'}; color:${podcastResearchCacheHit ? '#D97706' : '#15803D'}; padding:2px 6px; border-radius:10px; font-size:10px; font-weight:bold; white-space:nowrap;">
+                          ${podcastResearchCacheHit ? '⚡ Caché' : '🆕 Real'}
+                        </span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        ${podcastResearchLink ? `<a href="${podcastResearchLink}" style="background-color:#0E7490; color:#ffffff; text-decoration:none; padding:5px 10px; border-radius:4px; font-size:11px; font-weight:bold; display:inline-block; white-space:nowrap;">Escuchar</a>` : '<span style="color:#94A3B8;">N/A</span>'}
+                      </td>
+                    </tr>
+
+                    <!-- Bitácora de Investigación -->
+                    <tr style="border-bottom:1px solid #E2E8F0;">
+                      <td style="padding:12px 8px;">
+                        <strong>Bitácora de Investigación (.txt)</strong><br>
+                        <span style="font-size:11px; color:#64748B;">Transcripción de fuentes bibliográficas de mercado.</span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center; color:#475569;">${genDateStr}</td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        <span style="background-color:${fromResearchCache ? '#FEF3C7' : '#DCFCE7'}; color:${fromResearchCache ? '#D97706' : '#15803D'}; padding:2px 6px; border-radius:10px; font-size:10px; font-weight:bold; white-space:nowrap;">
+                          ${fromResearchCache ? '⚡ Caché' : '🆕 Real'}
+                        </span>
+                      </td>
+                      <td style="padding:12px 8px; text-align:center;">
+                        ${researchLink ? `<a href="${researchLink}" style="background-color:#0E7490; color:#ffffff; text-decoration:none; padding:5px 10px; border-radius:4px; font-size:11px; font-weight:bold; display:inline-block; white-space:nowrap;">Descargar</a>` : '<span style="color:#94A3B8;">N/A</span>'}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Extra Note -->
+              <p style="color:#64748B; font-size:12px; line-height:1.5; margin:24px 0 0 0; text-align:center;">
+                ⚠️ Los enlaces de descarga pre-firmados son válidos por 7 días naturales debido a políticas de seguridad corporativas.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color:#0B1E36; padding:20px; text-align:center; border-top:1px solid #E2E8F0;">
+              <p style="color:#94A3B8; font-size:11px; margin:0 0 8px 0;">Este es un correo automático generado por el Agente de Inteligencia Operativa Jetour Soueast.</p>
+              <p style="color:#FFFFFF; font-size:11px; margin:0;">© 2026 Jetour Soueast México. Todos los derechos reservados.</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+      `;
+
+      // Simplified text-only fallback body for text clients
       const emailBodyText = `Estimado Director,
 
 Adjuntamos los entregables estratégicos de Posventa y Refacciones para el periodo de ${monthName}. 
 
-Debido al tamaño de las imágenes premium y archivos de audio integrados, hemos adjuntado el Reporte Ejecutivo Principal directamente en este correo y habilitado enlaces de descarga rápida (válidos por 7 días) para el resto del material audiovisual:
+Debido al tamaño de las imágenes premium y archivos de audio, hemos habilitado enlaces de descarga rápida (válidos por 7 días) para el material audiovisual:
 
 📦 Entregables Principales:
-- 📈 Reporte Ejecutivo PDF Unificado (Adjunto en este correo)
-${pptxLink ? `- 📊 Presentación de Slides Corporativa (Descarga): ${pptxLink}\n` : ''}${podcastLink ? `- 🎙️ Podcast de Audio Conversacional - Elena y David (Descarga/Reproducción): ${podcastLink}\n` : ''}${imagesPdfLink ? `- 🖼️ Catálogo Completo de Campañas y Anuncios de Servicio (Descarga): ${imagesPdfLink}\n` : ''}
+- Reporte Ejecutivo PDF Unificado (Adjunto en este correo)
+- Presentación de Slides Corporativa: ${pptxLink || 'N/A'}
+- Podcast de Audio Conversacional - Elena y David: ${podcastLink || 'N/A'}
+- Catálogo Completo de Campañas y Anuncios de Servicio: ${imagesPdfLink || 'N/A'}
+
 🔍 Entregables de Investigación y Deep Research:
-- 📄 Bitácora e Investigación de Logística Base (Archivo .txt adjunto)
-${pptxResearchLink ? `- 🔎 Slides de la Investigación Logística (Descarga): ${pptxResearchLink}\n` : ''}${podcastResearchLink ? `- 🎧 Podcast de la Investigación Logística (Descarga/Reproducción): ${podcastResearchLink}\n` : ''}
+- Bitácora e Investigación de Logística Base (.txt adjunto)
+- Slides de la Investigación Logística: ${pptxResearchLink || 'N/A'}
+- Podcast de la Investigación Logística: ${podcastResearchLink || 'N/A'}
 
 El análisis cruza de forma integral los KPIs reales de productividad, TPU, retención y mix de canales del taller con la investigación profunda de logística de refacciones del mercado mexicano.`;
 
@@ -463,7 +732,7 @@ El análisis cruza de forma integral los KPIs reales de productividad, TPU, rete
         emailBodyText,
         pdfBuffer || undefined,
         pdfBuffer ? `Plan_Estrategico_Posventa_${monthName.replace(/\s+/g, '_')}.pdf` : undefined,
-        undefined,
+        htmlBody,
         additionalAttachments,
       );
 

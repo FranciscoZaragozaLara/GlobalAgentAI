@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plan de Implementación: Prompt Editor - GlobalAgentAI</title>
+  <!-- Tailwind CSS v4 & DaisyUI v5 CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5.0.0-beta.6/daisyui.css" rel="stylesheet" type="text/css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-base-300 min-h-screen p-6 text-base-content">
+  <div class="max-w-5xl mx-auto bg-base-100 shadow-2xl rounded-3xl p-8 border border-base-content/10">
+    
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between border-b border-base-content/10 pb-6 mb-8 gap-4">
+      <div>
+        <span class="badge badge-accent font-semibold mb-2">PLAN DE TRABAJO ESTRATÉGICO</span>
+        <h1 class="text-4xl font-extrabold text-base-content tracking-tight py-1 leading-normal">Editor Dinámico de Prompts</h1>
+        <p class="text-sm text-base-content/60 mt-1">Gestión en caliente de plantillas e instrucciones de IA en PostgreSQL</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="stats bg-base-200 shadow-sm border border-base-content/5 py-1 px-4">
+          <div class="stat p-0">
+            <div class="stat-title text-xs">Módulo Backend</div>
+            <div class="stat-value text-sm text-success">Activo (Ready)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Overview Card -->
+    <div class="card bg-base-200 border border-base-content/5 mb-8">
+      <div class="card-body">
+        <h2 class="card-title text-accent">Resumen del Módulo</h2>
+        <p class="text-sm text-base-content/85 leading-relaxed">
+          El <strong>PromptTemplateManager</strong> permite que el personal administrativo modifique el tono, las reglas del negocio, el formato del reporte y las directrices de generación de imágenes en tiempo real, directamente desde la base de datos PostgreSQL, sin requerir despliegues de código.
+        </p>
+      </div>
+    </div>
+
+    <!-- Architecture & Endpoints Section -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+      
+      <!-- List of Features Added -->
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <h3 class="card-title text-base-content font-bold">Últimas Funciones Agregadas</h3>
+          <ul class="steps steps-vertical mt-4">
+            <li class="step step-primary text-sm font-semibold">
+              <div class="text-left ml-4">
+                <p class="font-bold">Base de Datos PostgreSQL</p>
+                <p class="text-xs text-base-content/60">Esquema Prisma <code>PromptTemplate</code> persistido con clave única.</p>
+              </div>
+            </li>
+            <li class="step step-primary text-sm font-semibold">
+              <div class="text-left ml-4">
+                <p class="font-bold">Controlador REST</p>
+                <p class="text-xs text-base-content/60">Endpoints <code>GET /api/v1/prompts</code> y <code>PUT /api/v1/prompts/:key</code> activos.</p>
+              </div>
+            </li>
+            <li class="step step-primary text-sm font-semibold">
+              <div class="text-left ml-4">
+                <p class="font-bold">Resolución de Variables</p>
+                <p class="text-xs text-base-content/60">Mapeo y sustitución dinámica en caliente de variables tipo <code>{{PLACEHOLDER}}</code>.</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Live API Specs -->
+      <div class="card card-border bg-base-100">
+        <div class="card-body justify-between">
+          <div>
+            <h3 class="card-title text-base-content font-bold mb-4">Endpoints de Integración</h3>
+            <div class="overflow-x-auto rounded-box border border-base-content/5 bg-base-200">
+              <table class="table table-sm">
+                <thead>
+                  <tr class="bg-base-300">
+                    <th>Método</th>
+                    <th>Ruta</th>
+                    <th>Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><span class="badge badge-soft badge-info">GET</span></td>
+                    <td class="font-mono text-xs">/prompts</td>
+                    <td>Listar todos</td>
+                  </tr>
+                  <tr>
+                    <td><span class="badge badge-soft badge-info">GET</span></td>
+                    <td class="font-mono text-xs">/prompts/:key</td>
+                    <td>Obtener uno</td>
+                  </tr>
+                  <tr>
+                    <td><span class="badge badge-soft badge-warning">PUT</span></td>
+                    <td class="font-mono text-xs">/prompts/:key</td>
+                    <td>Actualizar</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="alert alert-soft alert-info text-xs mt-4">
+            <span>Para validar, la documentación interactiva Swagger se encuentra en <code>/api/docs</code>.</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Proposed Next Phase Plan -->
+    <div class="text-center text-accent text-xl font-bold py-4 border-y border-base-content/10 my-6">Fases de Implementación en Progreso</div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      
+      <!-- Plan Card 1 (Completed) -->
+      <div class="card card-border bg-base-200 border-success">
+        <div class="card-body">
+          <span class="badge badge-success font-semibold">FASE 1 - COMPLETADA</span>
+          <h4 class="card-title text-base font-bold mt-2">Historial de Versiones</h4>
+          <p class="text-xs text-base-content/85">
+            ✔ Nuevo modelo <code>PromptVersion</code> en Prisma.<br>
+            ✔ Guardado automático de versiones en <code>PromptTemplateService.update</code>.<br>
+            ✔ Métodos de consulta e historial de auditoría.<br>
+            ✔ Endpoint de Rollback para restauración rápida.<br>
+            <strong class="text-success">✔ Tests Jest (5/5) pasados exitosamente.</strong>
+          </p>
+        </div>
+      </div>
+
+      <!-- Plan Card 2 (Completed) -->
+      <div class="card card-border bg-base-200 border-success">
+        <div class="card-body">
+          <span class="badge badge-success font-semibold">FASE 2 - COMPLETADA</span>
+          <h4 class="card-title text-base font-bold mt-2">Validador de Sintaxis</h4>
+          <p class="text-xs text-base-content/85">
+            ✔ Analizador sintáctico implementado en <code>validateSyntax</code>.<br>
+            ✔ Validación de llaves balanceadas <code>{{</code> y <code>}}</code>.<br>
+            ✔ Prevención de placeholders vacíos y llaves anidadas.<br>
+            ✔ Rechazo de solicitudes inválidas con HTTP 400 (Bad Request).<br>
+            <strong class="text-success">✔ Tests Jest (4/4) pasados exitosamente.</strong>
+          </p>
+        </div>
+      </div>
+
+      <!-- Plan Card 3 (Completed) -->
+      <div class="card card-border bg-base-200 border-success">
+        <div class="card-body">
+          <span class="badge badge-success font-semibold">FASE 3 - COMPLETADA</span>
+          <h4 class="card-title text-base font-bold mt-2">Control de Roles</h4>
+          <p class="text-xs text-base-content/85">
+            ✔ Restricción de endpoints REST a roles administrativos.<br>
+            ✔ Verificación y mapeo de cabeceras de autorización.<br>
+            ✔ Protección contra modificaciones no autorizadas en prompts corporativos.<br>
+            <strong class="text-success">✔ Tests Jest (5/5) pasados exitosamente.</strong>
+          </p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Diagram -->
+    <div class="card bg-base-200 border border-base-content/5 p-6 rounded-3xl mb-6">
+      <h3 class="card-title text-base-content font-bold mb-4">Arquitectura del Flujo de Prompts</h3>
+      <div class="bg-base-100 p-6 rounded-2xl border border-base-content/5">
+        <pre class="mermaid">
+          sequenceDiagram
+            actor Admin as Administrador (UI)
+            participant Ctrl as PromptTemplateController
+            participant Serv as PromptTemplateService
+            participant DB as PostgreSQL (PromptTemplate)
+            participant LLM as Gemini Module
+
+            Admin->>Ctrl: PUT /prompts/:key (Nuevo Prompt)
+            Ctrl->>Serv: update(key, data)
+            Serv->>DB: Prisma Update
+            DB-->>Serv: Confirmación
+            Serv-->>Admin: Éxito (UI Actualizada)
+            
+            Note over Admin, LLM: En la siguiente ejecución del reporte...
+            LLM->>Serv: resolvePrompt(key, variables)
+            Serv->>DB: Carga plantilla de BD
+            Serv->>LLM: Devuelve Prompt con placeholders sustituidos
+            LLM->>LLM: Invocación a Gemini API
+        </pre>
+      </div>
+    </div>
+
+    <!-- Interactivity Section -->
+    <div class="alert alert-warning text-xs">
+      <span><strong>Nota de Interacción:</strong> Selecciona cualquier texto arriba o usa el chat lateral para indicarme qué cambios te gustaría realizar en este plan o si deseas proceder.</span>
+    </div>
+
+  </div>
+
+  <!-- Mermaid Loader -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+  </script>
+</body>
+</html>

@@ -59,9 +59,7 @@ export class GeminiService {
     try {
       let activeModel = model;
       if (activeModel === 'gemini-3.1-pro') {
-        activeModel = 'gemini-2.5-pro';
-      } else if (activeModel === 'gemini-3.1-flash') {
-        activeModel = 'gemini-2.5-flash';
+        activeModel = 'gemini-3.1-pro-preview';
       }
       this.logger.log(`Invoking Gemini Model: ${activeModel} (requested: ${model})...`);
       
@@ -81,6 +79,37 @@ export class GeminiService {
       this.logger.log('Gemini response successfully received.');
       return response.text;
     } catch (error) {
+      const isNotFoundError = error.message && (
+        error.message.includes('not found') || 
+        error.message.includes('404') || 
+        error.message.includes('does not have access')
+      );
+
+      if (isNotFoundError) {
+        const fallbackModel = model.includes('pro') ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
+        this.logger.warn(`Model ${model} is not available on your Vertex AI project. Falling back to ${fallbackModel}...`);
+        
+        try {
+          const response = await this.ai.models.generateContent({
+            model: fallbackModel,
+            contents: prompt,
+            config: {
+              temperature: 0.2,
+            }
+          });
+
+          if (!response.text) {
+            throw new Error('Gemini API returned an empty text response.');
+          }
+
+          this.logger.log(`Gemini response successfully received using fallback model ${fallbackModel}.`);
+          return response.text;
+        } catch (fallbackError) {
+          this.logger.error(`Error calling fallback model ${fallbackModel}: ${fallbackError.message}`, fallbackError.stack);
+          throw fallbackError;
+        }
+      }
+
       this.logger.error(`Error calling Gemini API: ${error.message}`, error.stack);
       throw error;
     }

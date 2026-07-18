@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prueba de Lavish Editor - GlobalAgentAI</title>
+  <!-- Tailwind CSS v4 & DaisyUI v5 CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5.0.0-beta.6/daisyui.css" rel="stylesheet" type="text/css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-base-200 min-h-screen p-6">
+  <div class="max-w-4xl mx-auto bg-base-100 shadow-xl rounded-2xl p-8 border border-base-300">
+    <div class="flex items-center justify-between border-b pb-4 mb-6">
+      <div>
+        <span class="badge badge-primary font-semibold">PRUEBA DE CONCEPTO</span>
+        <h1 class="text-3xl font-bold text-neutral mt-1 py-1 leading-normal">Lavish Editor AXI</h1>
+      </div>
+      <div class="text-right">
+        <p class="text-sm text-base-content/60">Estado de Servidores</p>
+        <span class="badge badge-success gap-2">● En Línea</span>
+      </div>
+    </div>
+
+    <div class="alert alert-info shadow-sm mb-6">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+      <div>
+        <h3 class="font-bold">¡Bienvenido al Entorno Interactivo!</h3>
+        <div class="text-xs">Esta página ha sido generada por el agente de IA para validar que la integración de Lavish funciona correctamente en tu máquina de desarrollo.</div>
+      </div>
+    </div>
+
+    <!-- Stats Section -->
+    <div class="stats shadow w-full mb-8 bg-base-200">
+      <div class="stat">
+        <div class="stat-title">Backend Port</div>
+        <div class="stat-value text-primary">3000</div>
+        <div class="stat-desc">NestJS Service</div>
+      </div>
+      
+      <div class="stat">
+        <div class="stat-title">Frontend Port</div>
+        <div class="stat-value text-secondary">3001</div>
+        <div class="stat-desc">Next.js Turbopack</div>
+      </div>
+
+      <div class="stat">
+        <div class="stat-title">Database Port</div>
+        <div class="stat-value text-accent">5432</div>
+        <div class="stat-desc">PostgreSQL (Docker)</div>
+      </div>
+    </div>
+
+    <!-- Review Section -->
+    <div class="card card-border bg-base-100 mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-neutral">¿Cómo funciona esta prueba?</h2>
+        <p class="text-sm text-base-content/80">
+          En esta pantalla interactiva, puedes:
+        </p>
+        <ul class="list-disc list-inside text-sm text-base-content/70 space-y-2 my-2">
+          <li><strong>Hacer comentarios o anotaciones:</strong> Selecciona cualquier bloque de texto en esta página para agregar un comentario.</li>
+          <li><strong>Modificar el flujo de trabajo:</strong> Puedes pedir cambios específicos al Agente sobre la arquitectura usando el panel de conversación lateral.</li>
+        </ul>
+        <div class="card-actions justify-end mt-4">
+          <button class="btn btn-primary" onclick="alert('¡Prueba interactiva exitosa!')">Simular Acción</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider py-1 leading-normal">Diagrama de Conexión</div>
+
+    <!-- Mermaid Container -->
+    <div class="bg-base-200 p-6 rounded-xl border border-base-300">
+      <pre class="mermaid">
+        graph LR
+          A[Next.js Client: 3001] -->|API Requests| B[NestJS Server: 3000]
+          B -->|ORM Commands| C[(PostgreSQL: 5432)]
+          B -->|Cache / Data| D[(AWS S3 / Files)]
+      </pre>
+    </div>
+  </div>
+  
+  <!-- Mermaid Loader -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+  </script>
+</body>
+</html>
